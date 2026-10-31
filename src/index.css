@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+.bg-grid-subtle {
+  background-size: 36px 36px;
+  background-image:
+    linear-gradient(to right, rgba(113, 113, 122, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(113, 113, 122, 0.09) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 15%, #000 55%, transparent 100%);
+}
