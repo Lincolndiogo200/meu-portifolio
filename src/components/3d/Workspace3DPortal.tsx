@@ -75,15 +75,18 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
   const currentProgressRef = useRef(0);
   const [hasWebGL] = useState<boolean>(() => detectWebGLSupport());
 
-  // Respect prefers-reduced-motion
+  // Always start cleanly at the 3D office overview (progress = 0)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mediaQuery.matches) {
-      targetProgressRef.current = 1;
-      currentProgressRef.current = 1;
-      setScrollProgress(1);
+
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
     }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    targetProgressRef.current = 0;
+    currentProgressRef.current = 0;
+    setScrollProgress(0);
   }, []);
 
   // Lock document scroll while progress < 1, drive zoom via wheel / touch

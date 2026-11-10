@@ -113,6 +113,7 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
   const mouseMeshRef = useRef<Mesh | null>(null);
   const mouseBasePosRef = useRef(new Vector3());
   const rightHandBoneRef = useRef<Bone | null>(null);
+  const chairSwivelRef = useRef(0);
   const penguinMeshRef = useRef<Object3D | null>(null);
   const dropStartTimeRef = useRef<number | null>(null);
 
@@ -304,10 +305,18 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
       rootWrapperRef.current.rotation.set(0, roomTransform.roomRotationY, 0);
     }
 
-    // Chair remains firmly grounded on the floor at the desk
+    // Chair rolls back & aside on scroll, and swivels in lockstep with Lincoln
     if (chairMeshRef.current) {
-      chairMeshRef.current.position.copy(chairBasePosRef.current);
-      chairMeshRef.current.rotation.set(0, 0, 0);
+      chairMeshRef.current.position.set(
+        chairBasePosRef.current.x - roomTransform.chairSlideOffset * 0.45,
+        chairBasePosRef.current.y,
+        chairBasePosRef.current.z + roomTransform.chairSlideOffset * 0.85
+      );
+      chairMeshRef.current.rotation.set(
+        0,
+        roomTransform.chairRotationY + chairSwivelRef.current,
+        0
+      );
     }
 
     // Scroll code on the main monitor both autonomously and when user scrolls
@@ -353,6 +362,9 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
         scrollProgress={scrollProgress}
         onRightHandBoneReady={(bone) => {
           rightHandBoneRef.current = bone;
+        }}
+        onSwivelChange={(swivel) => {
+          chairSwivelRef.current = swivel;
         }}
       />
     </group>

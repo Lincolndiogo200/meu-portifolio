@@ -88,12 +88,10 @@ const PortfolioShell: React.FC = () => {
         onSwitchLanguage={handleSwitchLanguage}
       />
 
-      {!isBooting && (
-        <Workspace3DPortal
-          onPortalStateChange={(inside) => setIsInsideMonitor(inside)}
-          onEnterMonitor={() => setIsInsideMonitor(true)}
-        />
-      )}
+      <Workspace3DPortal
+        onPortalStateChange={(inside) => setIsInsideMonitor(inside)}
+        onEnterMonitor={() => setIsInsideMonitor(true)}
+      />
 
       <main
         id="main-content"
