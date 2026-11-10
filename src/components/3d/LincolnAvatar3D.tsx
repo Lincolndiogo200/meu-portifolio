@@ -7,6 +7,7 @@ import {
   Bone,
   Box3,
   Group,
+  LinearSRGBColorSpace,
   LoopOnce,
   LoopPingPong,
   MathUtils,
@@ -16,7 +17,7 @@ import {
   Vector3,
 } from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { computeRoomTransform, easeInOutCubic } from '../../utils/cameraScrollMath';
+import { computeRoomTransform } from '../../utils/cameraScrollMath';
 
 export const BODY_MODEL_PATH = `${import.meta.env.BASE_URL}assets/models/avatar.glb`;
 export const HEAD_MODEL_PATH = `${import.meta.env.BASE_URL}models/lincoln-avatar.glb`;
@@ -30,15 +31,12 @@ interface LincolnAvatar3DProps {
   onSwivelChange?: (swivelY: number) => void;
 }
 
-// Swivel angles relative to facing the computer desk (Math.PI / 2):
-// When looking back towards the visitor camera: -2.10 rad (~ -120 deg)
-const CAMERA_SWIVEL_OFFSET = -2.10;
-// When facing the computer screens: 0 rad
-const COMPUTER_SWIVEL_OFFSET = 0.0;
+// Natural wave clip duration in avatar.glb is ~2.7s
+const WAVE_DURATION = 2.7;
 
-// Greeting duration: wave for 2.8s, swivel to computer in 1.2s
-const GREETING_DURATION = 2.8;
-const SWIVEL_DURATION = 1.2;
+// Workstation orientation offset (90 deg): aligns Lincoln squarely seated in the office chair
+// with his back against the backrest and facing forward toward the computer monitors
+const AVATAR_FACING_ROTATION = Math.PI / 2;
 
 export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
   scrollProgress = 0,
@@ -64,31 +62,39 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     `${import.meta.env.BASE_URL}assets/textures/matcap-white.webp`,
   ]);
 
-  // Assemble full-body character with Lincoln's 3D head attached to the skeleton
+  useMemo(() => {
+    matBlack.colorSpace = LinearSRGBColorSpace;
+    matSkin.colorSpace = LinearSRGBColorSpace;
+    matWhite.colorSpace = LinearSRGBColorSpace;
+  }, [matBlack, matSkin, matWhite]);
+
+  // Assemble full-body character with Lincoln's personalized 3D head attached to the skeleton
   const { skinnedMesh, rightHandBone } = useMemo(() => {
-    // 1. Clone animated rigged character body
-    const clonedBody = cloneSkeleton(bodyGltf.scene.children[0]) as Mesh;
-    clonedBody.frustumCulled = false;
+    const clonedArmature = cloneSkeleton(bodyGltf.scene.children[0]) as Mesh;
+    clonedArmature.frustumCulled = false;
+
+    // Setting rotation.z = 0 aligns avatar forward facing directly towards the monitors (-Z)
+    clonedArmature.rotation.z = 0;
 
     // Remove any unused meshes (e.g. brain)
-    const brain = clonedBody.getObjectByName('brain');
+    const brain = clonedArmature.getObjectByName('brain');
     if (brain && brain.parent) {
       brain.parent.remove(brain);
     }
 
-    // 2. Style body meshes & hide generic cartoon face/head
-    clonedBody.traverse((child) => {
+    // Style body meshes & hide generic cartoon face/head
+    clonedArmature.traverse((child) => {
       if (child instanceof Mesh) {
         child.frustumCulled = false;
         if (child.name === 'face' || child.name === 'head') {
-          // Hide generic head & face
+          // Hide cartoon head & face so Lincoln's realistic 3D head takes its place
           child.visible = false;
         } else if (child.name === 'black') {
           // Dark pants
           child.material = new MeshMatcapMaterial({ matcap: matBlack });
           child.renderOrder = 24;
         } else if (child.name === 'gray') {
-          // Clean white t-shirt
+          // Clean white t-shirt as in Lincoln's profile
           child.material = new MeshMatcapMaterial({ matcap: matWhite });
           child.renderOrder = 24;
         } else if (child.name === 'white') {
@@ -103,10 +109,9 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       }
     });
 
-    // 3. Attach Lincoln's real 3D head onto the character's headBone
-    const headBone = clonedBody.getObjectByName('headBone') as Bone | undefined;
+    // Attach Lincoln's real 3D head onto the character's headBone with anatomical proportions
+    const headBone = clonedArmature.getObjectByName('headBone') as Bone | undefined;
     if (headBone) {
-      // Clear any prior attached head children
       while (headBone.children.length > 0) {
         headBone.remove(headBone.children[0]);
       }
@@ -120,17 +125,16 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       box.getSize(size);
       box.getCenter(center);
 
-      // Proportional scale to fit the body's neck and shoulders perfectly
-      // Lincoln's model height: ~0.98. Target head/hair height on body: ~0.96 units
-      const headScale = size.y > 0 ? 0.96 / size.y : 1;
+      // Balanced head scale:
+      // In the original body, the stylized head height is 1.25.
+      // Lincoln's model height is 0.98. Target height on body: ~1.24 units.
+      const headScale = size.y > 0 ? 1.24 / size.y : 1.26;
 
-      // Position so the neck lines up seamlessly with the body collar/neck joint:
-      // In Lincoln's model: center.x = 0, neck base is at y ~ 0.35, chin at y ~ 0.45.
-      // In headBone local space: (0, 0, 0) is the neck joint, +Z is forward look direction.
+      // Position so the neck lines up seamlessly inside the body t-shirt collar:
       lincolnHead.position.set(
         -center.x * headScale,
-        -0.34 * headScale,
-        (-center.z + 0.08) * headScale
+        -0.41,
+        -0.065 * headScale
       );
       lincolnHead.scale.setScalar(headScale);
 
@@ -141,7 +145,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
           child.receiveShadow = true;
           const mat = child.material as MeshStandardMaterial;
           mat.roughness = Math.max(mat.roughness ?? 0.65, 0.6);
-          mat.metalness = Math.min(mat.metalness ?? 0.05, 0.08);
+          mat.metalness = Math.min(mat.metalness ?? 0.05, 0.06);
           mat.needsUpdate = true;
         }
       });
@@ -149,10 +153,23 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       headBone.add(lincolnHead);
     }
 
-    const handBone = (clonedBody.getObjectByName('bone-right-hand') as Bone) || null;
+    // Harmonize arm bone proportions so arms look naturally balanced with the human head
+    const leftArm = clonedArmature.getObjectByName('leftArmBone') as Bone | undefined;
+    const leftForeArm = clonedArmature.getObjectByName('leftForeArmBone') as Bone | undefined;
+    const rightArm = clonedArmature.getObjectByName('rightarmBone') as Bone | undefined;
+    const rightForeArm = clonedArmature.getObjectByName('rightForearmBone') as Bone | undefined;
+
+    // Subtle 8% thickness adjustment on the arm bones prevents cartoon bulge
+    const armThickness = 0.94;
+    if (leftArm) leftArm.scale.set(armThickness, 1, armThickness);
+    if (leftForeArm) leftForeArm.scale.set(armThickness, 1, armThickness);
+    if (rightArm) rightArm.scale.set(armThickness, 1, armThickness);
+    if (rightForeArm) rightForeArm.scale.set(armThickness, 1, armThickness);
+
+    const handBone = (clonedArmature.getObjectByName('bone-right-hand') as Bone) || null;
 
     return {
-      skinnedMesh: clonedBody,
+      skinnedMesh: clonedArmature,
       rightHandBone: handBone,
     };
   }, [bodyGltf.scene, headGltf.scene, matBlack, matSkin, matWhite]);
@@ -186,7 +203,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       const act = mixer.clipAction(waveClip);
       act.loop = LoopOnce;
       act.clampWhenFinished = true;
-      act.weight = 0;
+      act.weight = 1;
       act.play();
       actionsRef.current.set('wave', act);
     }
@@ -205,6 +222,14 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     };
   }, []);
 
+  const triggerWave = () => {
+    const wave = actionsRef.current.get('wave');
+    if (wave) {
+      wave.reset();
+      wave.play();
+    }
+  };
+
   useFrame(({ clock }, delta) => {
     const t = clock.getElapsedTime();
 
@@ -218,41 +243,25 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     // If user scrolled down and returned to top, replay greeting wave!
     if (prevScrollRef.current > 0.15 && scrollProgress <= 0.01) {
       startTimeRef.current = t;
-      const wave = actionsRef.current.get('wave');
-      if (wave) {
-        wave.reset();
-        wave.play();
-      }
+      triggerWave();
     }
     prevScrollRef.current = scrollProgress;
 
-    // Choreograph swivel angle:
-    // Starts turned around towards the camera so the visitor sees Lincoln's face,
-    // waves, and then swivels to face the computer monitors.
-    let currentSwivel = COMPUTER_SWIVEL_OFFSET;
+    // Choreograph wave weight:
+    // Wave action smoothly takes over for WAVE_DURATION (~2.7s), then blends back to idle
     let waveWeight = 0;
-
-    if (!isScrolling && elapsed < GREETING_DURATION) {
-      // Phase 1: Waving backwards towards the camera
-      currentSwivel = CAMERA_SWIVEL_OFFSET;
-
-      if (elapsed >= 0.2) {
-        const waveNorm = MathUtils.clamp((elapsed - 0.2) / (GREETING_DURATION - 0.4), 0, 1);
-        waveWeight = Math.sin(waveNorm * Math.PI);
+    if (!isScrolling && elapsed < WAVE_DURATION) {
+      if (elapsed < 0.2) {
+        waveWeight = elapsed / 0.2;
+      } else if (elapsed < WAVE_DURATION - 0.4) {
+        waveWeight = 1;
+      } else {
+        waveWeight = Math.max(0, (WAVE_DURATION - elapsed) / 0.4);
       }
-    } else if (!isScrolling && elapsed < GREETING_DURATION + SWIVEL_DURATION) {
-      // Phase 2: Smooth swivel from camera towards the computer screen
-      const turnNorm = MathUtils.clamp((elapsed - GREETING_DURATION) / SWIVEL_DURATION, 0, 1);
-      const easeTurn = easeInOutCubic(turnNorm);
-      currentSwivel = MathUtils.lerp(CAMERA_SWIVEL_OFFSET, COMPUTER_SWIVEL_OFFSET, easeTurn);
-      waveWeight = 0;
-    } else {
-      // Phase 3: Seated facing computer, coding!
-      currentSwivel = COMPUTER_SWIVEL_OFFSET;
-      waveWeight = 0;
     }
 
-    // Blend animation actions
+    const idleWeight = 1 - waveWeight;
+
     const wave = actionsRef.current.get('wave');
     const idle = actionsRef.current.get('idle');
 
@@ -260,36 +269,37 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       wave.weight = waveWeight;
     }
     if (idle) {
-      idle.weight = Math.max(0.15, 1 - waveWeight);
+      idle.weight = idleWeight;
     }
 
     if (mixerRef.current) {
       mixerRef.current.update(Math.min(delta, 0.05));
     }
 
-    // Inform parent (RoomEnvironment3D) of swivel so office chair rotates in lockstep!
+    // Inform parent (RoomEnvironment3D) of swivel (kept aligned at 0 with chair)
     if (onSwivelChange) {
-      onSwivelChange(currentSwivel);
+      onSwivelChange(0);
     }
 
     // Update floating speech badge
-    const showBadge = !isScrolling && elapsed >= 0.4 && elapsed <= 2.6;
-    setBadgeOpacity(showBadge ? Math.min(1, waveWeight * 1.4) : 0);
+    const showBadge = !isScrolling && waveWeight > 0.35;
+    setBadgeOpacity(MathUtils.lerp(badgeOpacity, showBadge ? 1 : 0, 0.15));
 
-    // Position full-body character seated in the chair
+    // Position character seated squarely in the office chair:
+    // With AVATAR_FACING_ROTATION (Math.PI / 2):
+    // Character sits facing forward looking straight at the monitor screens!
+    // On scroll: slides back & rotates in lockstep with the chair.
     const roomTransform = computeRoomTransform(scrollProgress);
 
     if (rootGroupRef.current) {
-      // Slides back and aside on scroll so camera zooms past into monitor
       rootGroupRef.current.position.set(
-        -0.07 - roomTransform.chairSlideOffset * 0.45,
-        -0.40,
-        -0.025 + roomTransform.chairSlideOffset * 0.85
+        -roomTransform.chairSlideOffset * 0.45,
+        0,
+        roomTransform.chairSlideOffset * 0.85
       );
-      // Math.PI / 2 faces computer desk; currentSwivel turns backwards to camera; chairRotationY on scroll
       rootGroupRef.current.rotation.set(
         0,
-        Math.PI / 2 + roomTransform.chairRotationY + currentSwivel,
+        roomTransform.chairRotationY + AVATAR_FACING_ROTATION,
         0
       );
     }
@@ -298,11 +308,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
   const handleAvatarClick = () => {
     // Replay greeting wave when visitor clicks on Lincoln!
     startTimeRef.current = null;
-    const wave = actionsRef.current.get('wave');
-    if (wave) {
-      wave.reset();
-      wave.play();
-    }
+    triggerWave();
   };
 
   return (
@@ -328,9 +334,9 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       {/* Floating Greeting Speech Badge */}
       {badgeOpacity > 0.02 && (
         <Html
-          position={[0, 4.3, 0.2]}
+          position={[0, 3.2, 0.4]}
           center
-          distanceFactor={12}
+          distanceFactor={11}
           zIndexRange={[100, 0]}
         >
           <div
