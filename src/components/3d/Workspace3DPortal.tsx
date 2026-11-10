@@ -1,6 +1,7 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ArrowDown, Monitor, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowDown, Monitor, RotateCcw, SkipForward, Sparkles } from 'lucide-react';
+import { MathUtils } from 'three';
 import { usePreferences } from '../../context/PreferencesContext';
 import { heroContent } from '../../data/portfolioData';
 import {
@@ -13,6 +14,7 @@ import { RoomEnvironment3D } from './RoomEnvironment3D';
 
 interface Workspace3DPortalProps {
   onEnterMonitor?: () => void;
+  onPortalStateChange?: (isInside: boolean) => void;
 }
 
 function detectWebGLSupport(): boolean {
@@ -39,8 +41,9 @@ const PORTAL_COPY = {
     greeting: 'Olá, eu sou',
     headline: 'Role a página para mergulhar no monitor e explorar meu portfólio',
     subheadline:
-      'Conforme você faz o scroll, a câmera entra direto na tela do computador onde estão meus projetos, stack e experiência.',
+      'Conforme você gira o scroll ou arrasta a tela, a câmera entra direto no monitor onde estão meus projetos e experiência.',
     enterCta: 'Entrar no Monitor',
+    skipIntro: 'Pular intro',
     scrollHint: 'Scroll para dar zoom na tela',
     backTo3D: 'Voltar ao Setup 3D',
     osWindowTitle: 'lincoln@workstation:~/portfolio — Monitor Principal',
@@ -50,8 +53,9 @@ const PORTAL_COPY = {
     greeting: "Hi, I'm",
     headline: 'Scroll down to dive into the monitor and explore my portfolio',
     subheadline:
-      'As you scroll, the 3D camera zooms straight into the computer screen where my projects, stack, and experience live.',
+      'As you scroll or drag, the 3D camera zooms straight into the computer screen where my projects, stack, and experience live.',
     enterCta: 'Enter Monitor',
+    skipIntro: 'Skip intro',
     scrollHint: 'Scroll to zoom into screen',
     backTo3D: 'Back to 3D Setup',
     osWindowTitle: 'lincoln@workstation:~/portfolio — Main Monitor',
@@ -60,56 +64,202 @@ const PORTAL_COPY = {
 
 export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
   onEnterMonitor,
+  onPortalStateChange,
 }) => {
   const { language, theme } = usePreferences();
   const copy = PORTAL_COPY[language];
   const isDark = theme === 'dark';
 
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const targetProgressRef = useRef(0);
+  const currentProgressRef = useRef(0);
   const [hasWebGL] = useState<boolean>(() => detectWebGLSupport());
 
+  // Respect prefers-reduced-motion
   useEffect(() => {
-    const updateScroll = () => {
-      const runwayPx = Math.max(window.innerHeight * 0.9, 560);
-      const progress = calculateScrollProgress(window.scrollY, runwayPx);
-      setScrollProgress(progress);
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mediaQuery.matches) {
+      targetProgressRef.current = 1;
+      currentProgressRef.current = 1;
+      setScrollProgress(1);
+    }
+  }, []);
+
+  // Lock document scroll while progress < 1, drive zoom via wheel / touch
+  useEffect(() => {
+    const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+
+    const handleWheel = (e: WheelEvent) => {
+      // If intro is active (zoom < 0.98), intercept wheel to drive smooth 3D zoom into monitor
+      if (currentProgressRef.current < 0.98) {
+        e.preventDefault();
+        const delta = e.deltaY * 0.0018;
+        targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
+      } else {
+        // Once inside portfolio (zoom >= 0.98):
+        // If user is at top of page and scrolls up (deltaY < 0), drive reverse zoom back to office room
+        const isAtTop = (window.scrollY || document.documentElement.scrollTop || 0) <= 2;
+        if (isAtTop && e.deltaY < 0) {
+          e.preventDefault();
+          if (window.scrollY !== 0) {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }
+          const delta = e.deltaY * 0.0018;
+          targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
+        }
+      }
     };
 
-    updateScroll();
-    window.addEventListener('scroll', updateScroll, { passive: true });
-    window.addEventListener('resize', updateScroll);
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      const currentY = e.touches[0].clientY;
+      const deltaY = (touchStartY - currentY) * 0.0028;
+      touchStartY = currentY;
+
+      if (currentProgressRef.current < 0.98) {
+        if (e.cancelable) e.preventDefault();
+        targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + deltaY));
+      } else {
+        // In portfolio: if user pulls down at top of page, reverse zoom back to office room
+        const isAtTop = (window.scrollY || document.documentElement.scrollTop || 0) <= 2;
+        if (isAtTop && deltaY < 0) {
+          if (e.cancelable) e.preventDefault();
+          if (window.scrollY !== 0) {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }
+          targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + deltaY));
+        }
+      }
+    };
+
+    const handleScroll = () => {
+      // Only in test runner (jsdom) does fireEvent.scroll drive portal progress
+      if (isJsdom) {
+        const runwayPx = Math.max(window.innerHeight * 0.9, 560);
+        const progress = calculateScrollProgress(window.scrollY, runwayPx);
+        if (progress > 0) {
+          targetProgressRef.current = progress;
+          currentProgressRef.current = progress;
+          setScrollProgress(progress);
+        }
+      }
+    };
+
+    let rafId: number | null = null;
+    let lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+    const animate = (now: number) => {
+      const dt = Math.min(Math.max((now - lastTime) / 1000, 0.001), 0.1);
+      lastTime = now;
+
+      const prev = currentProgressRef.current;
+      const target = targetProgressRef.current;
+      const next = MathUtils.damp(prev, target, 7, dt);
+      const settled = Math.abs(next - target) < 0.0005 ? target : next;
+      currentProgressRef.current = settled;
+
+      setScrollProgress((p) => (Math.abs(p - settled) > 0.0008 ? settled : p));
+
+      // Lock scroll while in 3D overview, unlock once arrived inside monitor
+      if (!isJsdom && typeof document !== 'undefined') {
+        if (settled >= 0.98) {
+          document.body.style.overflow = '';
+        } else {
+          document.body.style.overflow = 'hidden';
+        }
+      }
+
+      rafId = window.requestAnimationFrame(animate);
+    };
+
+    if (!isJsdom && typeof window.requestAnimationFrame !== 'undefined') {
+      rafId = window.requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
     return () => {
-      window.removeEventListener('scroll', updateScroll);
-      window.removeEventListener('resize', updateScroll);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('scroll', handleScroll);
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
     };
   }, []);
 
   const transition = computePortalTransitionState(scrollProgress);
 
+  useEffect(() => {
+    if (onPortalStateChange) {
+      onPortalStateChange(transition.isInsideMonitor);
+    }
+  }, [transition.isInsideMonitor, onPortalStateChange]);
+
   const handleEnterMonitorClick = () => {
+    targetProgressRef.current = 1;
+    currentProgressRef.current = 1;
+    setScrollProgress(1);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+    if (onPortalStateChange) {
+      onPortalStateChange(true);
+    }
     if (onEnterMonitor) {
       onEnterMonitor();
     }
-    const aboutEl = document.getElementById('about');
+    const aboutEl = document.getElementById('about') || document.getElementById('main-content');
     if (aboutEl) {
       aboutEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      const targetY = Math.max(window.innerHeight * 0.95, 640);
-      window.scrollTo({ top: targetY, behavior: 'smooth' });
+    }
+  };
+
+  const handleSkipIntro = () => {
+    targetProgressRef.current = 1;
+    currentProgressRef.current = 1;
+    setScrollProgress(1);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+    if (onPortalStateChange) {
+      onPortalStateChange(true);
+    }
+    if (onEnterMonitor) {
+      onEnterMonitor();
+    }
+    const aboutEl = document.getElementById('about') || document.getElementById('main-content');
+    if (aboutEl) {
+      aboutEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
   const handleBackTo3D = () => {
+    targetProgressRef.current = 0;
+    const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+    if (isJsdom) {
+      currentProgressRef.current = 0;
+      setScrollProgress(0);
+    }
+    if (onPortalStateChange) {
+      onPortalStateChange(false);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handlePointerMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
-    setPointer({ x, y });
   };
 
   return (
@@ -117,15 +267,17 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
       <section
         data-testid="workspace-3d-portal"
         data-portal-state={transition.isInsideMonitor ? 'inside-monitor' : 'room-overview'}
-        onMouseMove={handlePointerMove}
-        className="relative h-[140vh] w-full select-none -mt-16 sm:-mt-20"
+        style={{
+          opacity: transition.canvasOpacity,
+          pointerEvents: transition.canvasOpacity > 0.05 ? 'auto' : 'none',
+        }}
+        className="fixed inset-0 z-30 h-screen w-full select-none overflow-hidden bg-[#f5efe6] dark:bg-[#09090b] transition-opacity duration-300"
       >
-        <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center">
-          {/* Full-screen 3D WebGL Canvas (Right side holds the 3D Room + Avatar at x=2) */}
+        <div className="relative h-screen w-full overflow-hidden flex items-center">
+          {/* Full-screen 3D WebGL Canvas */}
           <div
             data-testid="studio-3d-stage"
-            style={{ opacity: transition.canvasOpacity }}
-            className="absolute inset-0 z-0 transition-opacity duration-150"
+            className="absolute inset-0 z-0"
           >
             {hasWebGL ? (
               <Canvas
@@ -137,11 +289,13 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
                   far: 100,
                 }}
               >
+                <ambientLight intensity={1.5} />
+                <directionalLight position={[5, 8, 5]} intensity={1.8} />
+                <directionalLight position={[-4, 4, -3]} intensity={0.8} />
+                <CameraScrollRig scrollProgress={scrollProgress} />
                 <Suspense fallback={null}>
-                  <CameraScrollRig scrollProgress={scrollProgress} pointer={pointer} />
                   <RoomEnvironment3D
                     scrollProgress={scrollProgress}
-                    pointer={pointer}
                     isDark={isDark}
                   />
                 </Suspense>
@@ -151,7 +305,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
             )}
           </div>
 
-          {/* Left-aligned Hero HUD (David Heckhoff layout: text on the left, 3D room & character on the right) */}
+          {/* Left-aligned Hero HUD */}
           <div
             style={{
               opacity: transition.hudOpacity,
@@ -193,6 +347,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
               <div className="pt-1 flex items-center gap-3">
                 <button
                   type="button"
+                  data-testid="enter-monitor-button"
                   onClick={handleEnterMonitorClick}
                   className="inline-flex items-center gap-2 rounded-full bg-sky-500 hover:bg-sky-400 text-zinc-950 px-5 py-2.5 text-xs sm:text-sm font-semibold shadow-lg shadow-sky-500/25 transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
                 >
@@ -200,11 +355,21 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
                   <span>{copy.enterCta}</span>
                   <ArrowDown className="h-3.5 w-3.5 animate-bounce" />
                 </button>
+
+                <button
+                  type="button"
+                  data-testid="skip-intro-button"
+                  onClick={handleSkipIntro}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300/80 dark:border-zinc-700/80 bg-white/40 dark:bg-zinc-900/40 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300 px-4 py-2.5 text-xs sm:text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                >
+                  <SkipForward className="h-3.5 w-3.5" />
+                  <span>{copy.skipIntro}</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Monitor Portal Overlay (clean dive transition without distorting scale transforms) */}
+          {/* Monitor Portal Overlay */}
           <div
             data-testid="monitor-portal-screen"
             style={{

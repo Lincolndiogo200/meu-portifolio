@@ -1,347 +1,125 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import {
-  AnimationAction,
-  AnimationClip,
-  AnimationMixer,
-  Bone,
-  CapsuleGeometry,
-  Color,
-  Group,
-  LinearSRGBColorSpace,
-  LoopOnce,
-  LoopPingPong,
-  Mesh,
-  MeshBasicMaterial,
-  MeshMatcapMaterial,
-  MeshStandardMaterial,
-  ShaderMaterial,
-  SRGBColorSpace,
-  Texture,
-  TextureLoader,
-  TorusGeometry,
-} from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { computeRoomTransform } from '../../utils/cameraScrollMath';
+import { useGLTF } from '@react-three/drei';
+import { Box3, Group, MathUtils, Vector3 } from 'three';
+
+export const AVATAR_MODEL_PATH = `${import.meta.env.BASE_URL}models/avatar.glb`;
+
+useGLTF.preload(AVATAR_MODEL_PATH);
 
 interface LincolnAvatar3DProps {
-  scrollProgress: number;
-  onRightHandBoneReady?: (bone: Bone | null) => void;
+  scrollProgress?: number;
+  onRightHandBoneReady?: (bone: null) => void;
 }
 
-const FACE_VERTEX_SHADER = `
-#include <skinning_pars_vertex>
-varying vec2 vUv;
-
-void main() {
-  #include <skinbase_vertex>
-  #include <begin_vertex>
-  #include <skinning_vertex>
-  #include <project_vertex>
-  vUv = uv;
-}
-`;
-
-const FACE_FRAGMENT_SHADER = `
-varying vec2 vUv;
-uniform sampler2D uTexture;
-uniform float uFrame;
-
-#define ROWS 4.0
-#define COLUMNS 4.0
-
-void main() {
-  float column = mod(uFrame, COLUMNS);
-  float row = floor(uFrame / COLUMNS);
-  row = (ROWS - 1.0) - row;
-
-  vec2 uv = vUv;
-  uv.x = (uv.x + column) / COLUMNS;
-  uv.y = (uv.y + row) / ROWS;
-
-  vec4 textureColor = texture2D(uTexture, uv);
-  gl_FragColor = vec4(textureColor.rgb, textureColor.a);
-}
-`;
+// Desk location in room space:
+// Desk surface top is at y = 1.58.
+// Main monitor is at x = -2.00, z = -0.54.
+// Position on desk between monitors: x = -1.10, y = 1.58, z = 0.60.
+// Base rotation pointing face towards camera: -1.043 rad (-59.7 deg).
+const DESK_AVATAR_POSITION: [number, number, number] = [-1.10, 1.58, 0.60];
+const BASE_ROTATION_Y = -1.043;
+const BASE_ROTATION_X = 0;
 
 export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
-  scrollProgress,
   onRightHandBoneReady,
 }) => {
-  const rootGroupRef = useRef<Group>(null);
-  const mixerRef = useRef<AnimationMixer | null>(null);
-  const actionsRef = useRef<Map<string, AnimationAction>>(new Map());
-  const faceUniformsRef = useRef<{ uTexture: { value: Texture | null }; uFrame: { value: number } }>({
-    uTexture: { value: null },
-    uFrame: { value: 12 },
-  });
-
-  const dropStartTimeRef = useRef<number | null>(null);
+  const { scene } = useGLTF(AVATAR_MODEL_PATH);
+  const bustRef = useRef<Group>(null);
+  const pointerTargetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    let isMounted = true;
-    const base = import.meta.env.BASE_URL;
-    const gltfLoader = new GLTFLoader();
-    const texLoader = new TextureLoader();
-
-    const loadTex = (path: string, srgb = false, flipY = true): Promise<Texture> =>
-      new Promise((resolve, reject) => {
-        texLoader.load(
-          `${base}${path}`,
-          (tex) => {
-            tex.flipY = flipY;
-            tex.colorSpace = srgb ? SRGBColorSpace : LinearSRGBColorSpace;
-            tex.generateMipmaps = false;
-            resolve(tex);
-          },
-          undefined,
-          reject
-        );
-      });
-
-    Promise.all([
-      new Promise<{ scene: Group; animations: AnimationClip[] }>((resolve, reject) => {
-        gltfLoader.load(`${base}assets/models/avatar.glb`, resolve, undefined, reject);
-      }),
-      loadTex('assets/textures/head.webp', true, false),
-      loadTex('assets/textures/face-spritesheet.png', false, true),
-      loadTex('assets/textures/matcap-black.webp', false, true),
-      loadTex('assets/textures/matcap-gray.webp', false, true),
-      loadTex('assets/textures/matcap-skin.webp', false, true),
-      loadTex('assets/textures/matcap-white.webp', false, true),
-    ])
-      .then(([gltf, headTex, faceTex, matBlack, _matGray, matSkin, matWhite]) => {
-        if (!isMounted || !rootGroupRef.current) return;
-
-        const clonedMesh = cloneSkeleton(gltf.scene.children[0]) as Mesh;
-        clonedMesh.frustumCulled = false;
-
-        faceUniformsRef.current.uTexture.value = faceTex;
-        const faceMaterial = new ShaderMaterial({
-          vertexShader: FACE_VERTEX_SHADER,
-          fragmentShader: FACE_FRAGMENT_SHADER,
-          transparent: true,
-          depthTest: false,
-          depthWrite: false,
-          uniforms: faceUniformsRef.current,
-        });
-
-        const headMaterial = new MeshBasicMaterial({
-          map: headTex,
-        });
-
-        const brain = clonedMesh.getObjectByName('brain');
-        if (brain && brain.parent) {
-          brain.parent.remove(brain);
-        }
-
-        clonedMesh.traverse((child) => {
-          if (child instanceof Mesh) {
-            child.frustumCulled = false;
-            if (child.name === 'face') {
-              child.material = faceMaterial;
-              child.renderOrder = 25;
-            } else if (child.name === 'head') {
-              child.material = headMaterial;
-              child.renderOrder = 24;
-            } else if (child.name === 'black') {
-              child.material = new MeshMatcapMaterial({ matcap: matBlack });
-              child.renderOrder = 24;
-            } else if (child.name === 'gray') {
-              // Lincoln wears a clean white t-shirt as in his reference art
-              child.material = new MeshMatcapMaterial({ matcap: matWhite });
-              child.renderOrder = 24;
-            } else if (child.name === 'skin') {
-              child.material = new MeshMatcapMaterial({ matcap: matSkin });
-              child.renderOrder = 24;
-            } else if (child.name === 'white') {
-              child.material = new MeshMatcapMaterial({ matcap: matWhite });
-              child.renderOrder = 24;
-            }
-          }
-        });
-
-        clonedMesh.rotation.z = 0;
-
-        // Personalize avatar with Lincoln's features parented to headBone
-        const headBone = clonedMesh.getObjectByName('headBone') as Bone | undefined;
-        if (headBone) {
-          // ==========================================
-          // 1. VOLUMINOUS CURLY / WAVY HAIR (MATCHING LINCOLN REFERENCE)
-          // ==========================================
-          const hairMat = new MeshStandardMaterial({
-            color: new Color('#16110e'),
-            roughness: 0.5,
-            metalness: 0.06,
-          });
-          const hairGroup = new Group();
-
-          // Crown and front wavy locks snugly framing the head
-          const crownOffsets = [
-            { pos: [0.0, 0.49, 0.08], rot: [0.2, 0.1, 0.3], scale: [0.08, 0.07, 0.08] },
-            { pos: [0.10, 0.47, 0.12], rot: [0.3, -0.2, 0.2], scale: [0.075, 0.065, 0.075] },
-            { pos: [-0.10, 0.47, 0.12], rot: [0.3, 0.2, -0.2], scale: [0.075, 0.065, 0.075] },
-            { pos: [0.06, 0.48, -0.05], rot: [-0.1, 0.3, 0.1], scale: [0.07, 0.06, 0.07] },
-            { pos: [-0.06, 0.48, -0.05], rot: [-0.1, -0.3, -0.1], scale: [0.07, 0.06, 0.07] },
-          ];
-
-          const waveGeom = new CapsuleGeometry(0.045, 0.11, 8, 12);
-          crownOffsets.forEach((cfg) => {
-            const mesh = new Mesh(waveGeom, hairMat);
-            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
-            mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
-            hairGroup.add(mesh);
-          });
-
-          // Signature Forehead Curls (wavy locks cascading gracefully over forehead as in reference photo)
-          const foreheadCurlGeom = new TorusGeometry(0.048, 0.022, 10, 20, Math.PI * 1.3);
-          const frontLocks = [
-            { pos: [0.04, 0.38, 0.34], rot: [0.5, 0.2, -0.5], scale: 1.05 },
-            { pos: [-0.05, 0.37, 0.35], rot: [0.6, -0.3, -0.2], scale: 0.95 },
-            { pos: [0.12, 0.39, 0.31], rot: [0.4, 0.5, -0.6], scale: 0.85 },
-          ];
-
-          frontLocks.forEach((cfg) => {
-            const mesh = new Mesh(foreheadCurlGeom, hairMat);
-            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
-            mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
-            mesh.scale.setScalar(cfg.scale);
-            hairGroup.add(mesh);
-          });
-
-          headBone.add(hairGroup);
-
-          // ==========================================
-          // 2. SHINY SILVER HOOP EARRINGS (BOTH EARS)
-          // ==========================================
-          const earringGeom = new TorusGeometry(0.038, 0.007, 14, 28);
-          const silverMat = new MeshStandardMaterial({
-            color: new Color('#e2e8f0'),
-            metalness: 0.95,
-            roughness: 0.15,
-          });
-
-          // Left Earring
-          const leftEarring = new Mesh(earringGeom, silverMat);
-          leftEarring.position.set(0.33, -0.05, 0.02);
-          leftEarring.rotation.set(0, Math.PI / 2, 0);
-          headBone.add(leftEarring);
-
-          // Right Earring
-          const rightEarring = new Mesh(earringGeom, silverMat);
-          rightEarring.position.set(-0.33, -0.05, 0.02);
-          rightEarring.rotation.set(0, Math.PI / 2, 0);
-          headBone.add(rightEarring);
-        }
-
-        rootGroupRef.current.clear();
-        rootGroupRef.current.add(clonedMesh);
-
-        const rightHandBone = (clonedMesh.getObjectByName('bone-right-hand') as Bone) || null;
-        if (onRightHandBoneReady) {
-          onRightHandBoneReady(rightHandBone);
-        }
-
-        const mixer = new AnimationMixer(clonedMesh);
-        mixerRef.current = mixer;
-
-        const findClip = (name: string) =>
-          gltf.animations.find((clip) => clip.name === name);
-
-        const idleClip = findClip('idle');
-        const tIdleClip = findClip('t-idle');
-        const waveClip = findClip('wave');
-
-        if (idleClip) {
-          const act = mixer.clipAction(idleClip);
-          act.loop = LoopPingPong;
-          act.weight = 1;
-          act.play();
-          actionsRef.current.set('desktop-idle', act);
-        }
-
-        if (tIdleClip) {
-          const act = mixer.clipAction(tIdleClip);
-          act.loop = LoopPingPong;
-          act.weight = 0;
-          act.play();
-          actionsRef.current.set('t-idle', act);
-        }
-
-        if (waveClip) {
-          const act = mixer.clipAction(waveClip);
-          act.loop = LoopOnce;
-          act.clampWhenFinished = true;
-          act.weight = 0;
-          act.play();
-          actionsRef.current.set('wave', act);
-        }
-      })
-      .catch(() => {
-        // Ignore asset errors in non-WebGL / test environments
-      });
-
-    return () => {
-      isMounted = false;
-      mixerRef.current?.stopAllAction();
-    };
+    if (onRightHandBoneReady) {
+      onRightHandBoneReady(null);
+    }
   }, [onRightHandBoneReady]);
 
-  useFrame(({ clock }, delta) => {
-    const t = clock.getElapsedTime();
-    if (dropStartTimeRef.current === null) {
-      dropStartTimeRef.current = t;
-    }
+  // Center pivot via Box3 and compute scale dynamically from model bounding box
+  const { clonedScene, dynamicScale, centerOffset } = useMemo(() => {
+    const cloned = scene.clone(true);
+    const box = new Box3().setFromObject(cloned);
+    const size = new Vector3();
+    const center = new Vector3();
+    box.getSize(size);
+    box.getCenter(center);
 
-    const roomTransform = computeRoomTransform(scrollProgress);
+    // Target desk bust height: ~0.50 units (harmonious with desk and monitor scale)
+    const targetHeight = 0.50;
+    const scale = size.y > 0 ? targetHeight / size.y : 1;
 
-    // Avatar is permanently seated in the chair (no flying or standing)
-    const desktopIdle = actionsRef.current.get('desktop-idle');
-    const tIdle = actionsRef.current.get('t-idle');
-    const wave = actionsRef.current.get('wave');
+    // Center pivot at base of model so its bottom sits right on the surface:
+    // center.x, box.min.y, center.z
+    const offset = new Vector3(-center.x, -box.min.y, -center.z);
 
-    if (desktopIdle) {
-      desktopIdle.weight = 1;
-    }
-    if (tIdle) {
-      tIdle.weight = 0;
-    }
-    if (wave) {
-      wave.weight = 0;
-    }
+    return {
+      clonedScene: cloned,
+      dynamicScale: scale,
+      centerOffset: offset,
+    };
+  }, [scene]);
 
-    // Always maintain Lincoln's charming smile with natural eye blinking
-    const blinkCycle = t % 4.2;
-    let blinkOffset = 0;
-    if (blinkCycle > 4.0) {
-      blinkOffset = 3;
-    } else if (blinkCycle > 3.92) {
-      blinkOffset = 2;
-    } else if (blinkCycle > 3.85) {
-      blinkOffset = 1;
-    }
-    faceUniformsRef.current.uFrame.value = 12 + blinkOffset;
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      if (width <= 0 || height <= 0) return;
+      const x = (e.clientX / width) * 2 - 1;
+      const y = -((e.clientY / height) * 2 - 1);
+      pointerTargetRef.current.x = Math.max(-1, Math.min(1, x));
+      pointerTargetRef.current.y = Math.max(-1, Math.min(1, y));
+    };
 
-    if (mixerRef.current) {
-      mixerRef.current.update(Math.min(delta, 0.05));
-    }
+    const handleResetNeutral = () => {
+      pointerTargetRef.current.x = 0;
+      pointerTargetRef.current.y = 0;
+    };
 
-    // On scroll: Lincoln and his chair smoothly roll BACKWARDS away from the desk (+X)
-    // so the camera zooms cleanly straight into the computer screen with zero clipping!
-    if (rootGroupRef.current) {
-      rootGroupRef.current.position.set(
-        -0.07 + roomTransform.chairSlideOffset * 0.55,
-        -0.40,
-        -0.025 - roomTransform.chairSlideOffset * 0.15
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    document.addEventListener('pointerleave', handleResetNeutral);
+    window.addEventListener('blur', handleResetNeutral);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerleave', handleResetNeutral);
+      window.removeEventListener('blur', handleResetNeutral);
+    };
+  }, []);
+
+  useFrame((_, delta) => {
+    const safeDelta = Math.min(delta, 0.1);
+
+    if (bustRef.current) {
+      // Clamped subtle head tracking: ±15° in Y, ±8° in X
+      const targetRotY = BASE_ROTATION_Y + pointerTargetRef.current.x * MathUtils.degToRad(15);
+      const targetRotX = BASE_ROTATION_X - pointerTargetRef.current.y * MathUtils.degToRad(8);
+
+      bustRef.current.rotation.y = MathUtils.damp(
+        bustRef.current.rotation.y,
+        targetRotY,
+        5,
+        safeDelta
       );
-      rootGroupRef.current.rotation.set(
-        0,
-        Math.PI / 2 + roomTransform.chairRotationY,
-        0
+      bustRef.current.rotation.x = MathUtils.damp(
+        bustRef.current.rotation.x,
+        targetRotX,
+        5,
+        safeDelta
       );
     }
   });
 
-  return <group ref={rootGroupRef} />;
+  return (
+    // Positioned solidly on the desk surface next to the monitor, facing the visitor
+    <group position={DESK_AVATAR_POSITION} ref={bustRef}>
+      <primitive
+        object={clonedScene}
+        position={[
+          centerOffset.x * dynamicScale,
+          centerOffset.y * dynamicScale,
+          centerOffset.z * dynamicScale,
+        ]}
+        scale={dynamicScale}
+      />
+    </group>
+  );
 };

@@ -22,6 +22,7 @@ const PortfolioShell: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<ProjectCategory>('all');
   const [activeSkill, setActiveSkill] = useState<string | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isInsideMonitor, setIsInsideMonitor] = useState(false);
 
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
@@ -87,9 +88,19 @@ const PortfolioShell: React.FC = () => {
         onSwitchLanguage={handleSwitchLanguage}
       />
 
-      {!isBooting && <Workspace3DPortal />}
+      {!isBooting && (
+        <Workspace3DPortal
+          onPortalStateChange={(inside) => setIsInsideMonitor(inside)}
+          onEnterMonitor={() => setIsInsideMonitor(true)}
+        />
+      )}
 
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-10 sm:pt-14 space-y-16 sm:space-y-20">
+      <main
+        id="main-content"
+        className={`mx-auto max-w-5xl px-4 sm:px-6 pt-10 sm:pt-14 space-y-16 sm:space-y-20 transition-opacity duration-300 ${
+          isInsideMonitor ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
         {isBooting ? (
           <HeroBentoSkeleton />
         ) : (

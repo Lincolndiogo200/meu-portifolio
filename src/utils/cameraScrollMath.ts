@@ -67,26 +67,39 @@ export function computeCameraPose(
   progress: number,
   pointer: { x: number; y: number } = { x: 0, y: 0 }
 ): CameraPose {
-  const t = easeInOutCubic(clamp(progress, 0, 1));
-  // Attenuate mouse parallax smoothly to 0 as camera zooms into the monitor
-  const parallaxFactor = Math.pow(1 - clamp(progress, 0, 1), 2);
-  // Smooth subtle translation parallax that doesn't tilt the scene or make objects float
-  const offsetX = clamp(pointer.x, -1, 1) * 0.18 * parallaxFactor;
-  const offsetY = clamp(pointer.y, -1, 1) * 0.10 * parallaxFactor;
+  const clampedProgress = clamp(progress, 0, 1);
+  const t = easeInOutCubic(clampedProgress);
 
-  const position: Vec3Tuple = [
-    lerpNumber(ROOM_INITIAL_POSITION[0], MONITOR_TARGET_POSITION[0], t) + offsetX,
-    lerpNumber(ROOM_INITIAL_POSITION[1], MONITOR_TARGET_POSITION[1], t) + offsetY,
+  // 1. Base camera pose from scroll interpolation
+  const basePosition: Vec3Tuple = [
+    lerpNumber(ROOM_INITIAL_POSITION[0], MONITOR_TARGET_POSITION[0], t),
+    lerpNumber(ROOM_INITIAL_POSITION[1], MONITOR_TARGET_POSITION[1], t),
     lerpNumber(ROOM_INITIAL_POSITION[2], MONITOR_TARGET_POSITION[2], t),
   ];
 
+  // Fixed lookAt target determined strictly by scroll; unaffected by pointer
   const lookAt: Vec3Tuple = [
-    lerpNumber(ROOM_INITIAL_LOOKAT[0], MONITOR_TARGET_LOOKAT[0], t) + offsetX * 0.85,
-    lerpNumber(ROOM_INITIAL_LOOKAT[1], MONITOR_TARGET_LOOKAT[1], t) + offsetY * 0.85,
+    lerpNumber(ROOM_INITIAL_LOOKAT[0], MONITOR_TARGET_LOOKAT[0], t),
+    lerpNumber(ROOM_INITIAL_LOOKAT[1], MONITOR_TARGET_LOOKAT[1], t),
     lerpNumber(ROOM_INITIAL_LOOKAT[2], MONITOR_TARGET_LOOKAT[2], t),
   ];
 
   const fov = lerpNumber(38, 28, t);
+
+  // 2. The pointer effect MUST NOT move the camera during zoom (user requirement):
+  // "o movimento do ponteiro NÃO pode mexer na câmera durante o zoom"
+  const pointerWeight = clampedProgress < 0.01 ? 1 : Math.max(0, 1 - clampedProgress * 15);
+
+  // 3. Pointer offset applied AFTER base scroll pose:
+  // Offset X: maximum ±0.10. Offset Y: zeroed (no vertical elevation to keep avatar seated).
+  const offsetX = clamp(pointer.x, -1, 1) * 0.10 * pointerWeight;
+  const offsetY = 0;
+
+  const position: Vec3Tuple = [
+    basePosition[0] + offsetX,
+    basePosition[1] + offsetY,
+    basePosition[2],
+  ];
 
   return { position, lookAt, fov };
 }
@@ -110,11 +123,12 @@ export function computeRoomTransform(progress: number): RoomTransformState {
 
 export function computePortalTransitionState(progress: number): PortalTransitionState {
   const p = clamp(progress, 0, 1);
-  const hudOpacity = clamp(1 - p / 0.28, 0, 1);
-  // Zero overlay box at scroll=0; only fades in when camera reaches monitor screen (p > 0.72)
+  // HUD card fades out cleanly as soon as zoom begins (completely gone by p = 0.20)
+  const hudOpacity = clamp(1 - p / 0.20, 0, 1);
+  // Screen overlay box only fades in when camera reaches monitor screen (p > 0.72)
   const screenOverlayOpacity = clamp((p - 0.72) / 0.22, 0, 1);
-  // Keep canvas fully visible during zoom so there is never an empty black gap
-  const canvasOpacity = clamp(1 - (p - 0.94) / 0.06, 0, 1);
+  // 3D scene smoothly crossfades into the portfolio between 0.88 and 1.0
+  const canvasOpacity = clamp(1 - (p - 0.88) / 0.12, 0, 1);
   const monitorZoomScale = 1 + easeInOutCubic(p) * 1.85;
   const isInsideMonitor = p >= 0.85;
 

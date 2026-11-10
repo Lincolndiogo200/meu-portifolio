@@ -25,7 +25,6 @@ import { LincolnAvatar3D } from './LincolnAvatar3D';
 
 interface RoomEnvironment3DProps {
   scrollProgress: number;
-  pointer: { x: number; y: number };
   isDark: boolean;
 }
 
@@ -305,18 +304,10 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
       rootWrapperRef.current.rotation.set(0, roomTransform.roomRotationY, 0);
     }
 
-    // On scroll: Chair smoothly rolls BACKWARDS away from the desk (+X) in exact lockstep with Lincoln
+    // Chair remains firmly grounded on the floor at the desk
     if (chairMeshRef.current) {
-      chairMeshRef.current.position.set(
-        chairBasePosRef.current.x + roomTransform.chairSlideOffset * 0.55,
-        chairBasePosRef.current.y,
-        chairBasePosRef.current.z - roomTransform.chairSlideOffset * 0.15
-      );
-      chairMeshRef.current.rotation.set(
-        0,
-        roomTransform.chairRotationY,
-        0
-      );
+      chairMeshRef.current.position.copy(chairBasePosRef.current);
+      chairMeshRef.current.rotation.set(0, 0, 0);
     }
 
     // Scroll code on the main monitor both autonomously and when user scrolls

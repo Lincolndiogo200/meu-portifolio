@@ -39,6 +39,33 @@ describe('cameraScrollMath', () => {
     expect(endPose.lookAt[2]).toBeCloseTo(MONITOR_TARGET_LOOKAT[2], 4);
   });
 
+  it('guarantees pointer does not tilt lookAt, zeroes vertical Y displacement, and clamps horizontal X to ±0.10', () => {
+    const neutralPose = computeCameraPose(0, { x: 0, y: 0 });
+    const fullRightPose = computeCameraPose(0, { x: 1, y: 1 });
+    const fullLeftPose = computeCameraPose(0, { x: -1, y: -1 });
+    const extremePose = computeCameraPose(0, { x: 5, y: -10 });
+
+    // LookAt remains 100% fixed
+    expect(fullRightPose.lookAt).toEqual(neutralPose.lookAt);
+    expect(fullLeftPose.lookAt).toEqual(neutralPose.lookAt);
+    expect(extremePose.lookAt).toEqual(neutralPose.lookAt);
+
+    // Y offset is strictly zero (avatar stays grounded on chair/desk)
+    expect(fullRightPose.position[1]).toBe(neutralPose.position[1]);
+    expect(fullLeftPose.position[1]).toBe(neutralPose.position[1]);
+    expect(extremePose.position[1]).toBe(neutralPose.position[1]);
+
+    // X offset is bounded by ±0.10
+    expect(fullRightPose.position[0] - neutralPose.position[0]).toBeCloseTo(0.10, 4);
+    expect(fullLeftPose.position[0] - neutralPose.position[0]).toBeCloseTo(-0.10, 4);
+    expect(extremePose.position[0] - neutralPose.position[0]).toBeCloseTo(0.10, 4);
+
+    // Attenuation decays to 0 at progress >= 0.8
+    const enteringMonitorPose = computeCameraPose(0.85, { x: 1, y: 1 });
+    const enteringMonitorNeutral = computeCameraPose(0.85, { x: 0, y: 0 });
+    expect(enteringMonitorPose.position).toEqual(enteringMonitorNeutral.position);
+  });
+
   it('computes HUD, monitor overlay, and inside-monitor state across scroll phases', () => {
     const atTop = computePortalTransitionState(0);
     expect(atTop.isInsideMonitor).toBe(false);
