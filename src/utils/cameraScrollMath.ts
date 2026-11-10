@@ -40,8 +40,8 @@ export const ROOM_INITIAL_POSITION: Vec3Tuple = [0, 6, 10];
 export const ROOM_INITIAL_LOOKAT: Vec3Tuple = [0, 3, 0];
 
 // Target pose zoomed squarely into desktop-plane-0 main monitor screen in world space
-export const MONITOR_TARGET_POSITION: Vec3Tuple = [4.78, 2.61, -0.20];
-export const MONITOR_TARGET_LOOKAT: Vec3Tuple = [3.74, 2.56, -1.13];
+export const MONITOR_TARGET_POSITION: Vec3Tuple = [2.465, 2.790, 0.393];
+export const MONITOR_TARGET_LOOKAT: Vec3Tuple = [3.740, 2.559, -1.131];
 
 export function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, value));
@@ -70,8 +70,9 @@ export function computeCameraPose(
   const t = easeInOutCubic(clamp(progress, 0, 1));
   // Attenuate mouse parallax smoothly to 0 as camera zooms into the monitor
   const parallaxFactor = Math.pow(1 - clamp(progress, 0, 1), 2);
-  const offsetX = clamp(pointer.x, -1, 1) * 0.4 * parallaxFactor;
-  const offsetY = clamp(pointer.y, -1, 1) * 0.25 * parallaxFactor;
+  // Smooth subtle translation parallax that doesn't tilt the scene or make objects float
+  const offsetX = clamp(pointer.x, -1, 1) * 0.18 * parallaxFactor;
+  const offsetY = clamp(pointer.y, -1, 1) * 0.10 * parallaxFactor;
 
   const position: Vec3Tuple = [
     lerpNumber(ROOM_INITIAL_POSITION[0], MONITOR_TARGET_POSITION[0], t) + offsetX,
@@ -80,12 +81,12 @@ export function computeCameraPose(
   ];
 
   const lookAt: Vec3Tuple = [
-    lerpNumber(ROOM_INITIAL_LOOKAT[0], MONITOR_TARGET_LOOKAT[0], t) + offsetX * 0.1,
-    lerpNumber(ROOM_INITIAL_LOOKAT[1], MONITOR_TARGET_LOOKAT[1], t) + offsetY * 0.1,
+    lerpNumber(ROOM_INITIAL_LOOKAT[0], MONITOR_TARGET_LOOKAT[0], t) + offsetX * 0.85,
+    lerpNumber(ROOM_INITIAL_LOOKAT[1], MONITOR_TARGET_LOOKAT[1], t) + offsetY * 0.85,
     lerpNumber(ROOM_INITIAL_LOOKAT[2], MONITOR_TARGET_LOOKAT[2], t),
   ];
 
-  const fov = lerpNumber(38, 30, t);
+  const fov = lerpNumber(38, 28, t);
 
   return { position, lookAt, fov };
 }
@@ -93,8 +94,8 @@ export function computeCameraPose(
 export function computeRoomTransform(progress: number): RoomTransformState {
   const p = clamp(progress, 0, 1);
   const slideProgress = easeInOutCubic(clamp(p / 0.75, 0, 1));
-  const chairSlideOffset = slideProgress * 2.2;
-  const chairRotationY = -slideProgress * 0.6;
+  const chairSlideOffset = slideProgress * 1.8;
+  const chairRotationY = -slideProgress * 0.45;
 
   return {
     roomPosition: [2.0, 0, 0],

@@ -168,59 +168,46 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
         const headBone = clonedMesh.getObjectByName('headBone') as Bone | undefined;
         if (headBone) {
           // ==========================================
-          // 1. VOLUMINOUS CURLY / WAVY HAIR SYSTEM
+          // 1. VOLUMINOUS CURLY / WAVY HAIR (MATCHING LINCOLN REFERENCE)
           // ==========================================
           const hairMat = new MeshStandardMaterial({
-            color: new Color('#140e09'),
-            roughness: 0.45,
-            metalness: 0.08,
+            color: new Color('#16110e'),
+            roughness: 0.5,
+            metalness: 0.06,
           });
           const hairGroup = new Group();
 
-          // Crown and top curly volume giving high silhouette
-          const curlGeom = new TorusGeometry(0.085, 0.038, 8, 16, Math.PI * 1.4);
-          const capGeom = new CapsuleGeometry(0.048, 0.13, 8, 12);
-          const smallCurl = new TorusGeometry(0.055, 0.028, 8, 16, Math.PI * 1.5);
-
+          // Crown and front wavy locks snugly framing the head
           const crownOffsets = [
-            { pos: [0.0, 0.52, 0.05], rot: [0.3, 0.2, 0.4] },
-            { pos: [0.12, 0.50, 0.12], rot: [0.5, -0.3, 0.2] },
-            { pos: [-0.12, 0.50, 0.10], rot: [0.4, 0.4, -0.3] },
-            { pos: [0.08, 0.53, -0.08], rot: [-0.2, 0.5, 0.1] },
-            { pos: [-0.10, 0.52, -0.06], rot: [-0.3, -0.4, -0.2] },
-            { pos: [0.20, 0.44, 0.02], rot: [0.2, 0.1, 0.8] },
-            { pos: [-0.20, 0.44, 0.02], rot: [0.2, -0.1, -0.8] },
-            { pos: [0.18, 0.42, 0.20], rot: [0.6, -0.4, 0.5] },
-            { pos: [-0.18, 0.42, 0.18], rot: [0.6, 0.4, -0.5] },
+            { pos: [0.0, 0.49, 0.08], rot: [0.2, 0.1, 0.3], scale: [0.08, 0.07, 0.08] },
+            { pos: [0.10, 0.47, 0.12], rot: [0.3, -0.2, 0.2], scale: [0.075, 0.065, 0.075] },
+            { pos: [-0.10, 0.47, 0.12], rot: [0.3, 0.2, -0.2], scale: [0.075, 0.065, 0.075] },
+            { pos: [0.06, 0.48, -0.05], rot: [-0.1, 0.3, 0.1], scale: [0.07, 0.06, 0.07] },
+            { pos: [-0.06, 0.48, -0.05], rot: [-0.1, -0.3, -0.1], scale: [0.07, 0.06, 0.07] },
           ];
 
+          const waveGeom = new CapsuleGeometry(0.045, 0.11, 8, 12);
           crownOffsets.forEach((cfg) => {
-            const mesh = new Mesh(curlGeom, hairMat);
+            const mesh = new Mesh(waveGeom, hairMat);
             mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
             mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
             hairGroup.add(mesh);
           });
 
-          // Signature Forehead Curls (wavy locks cascading over forehead matching reference art)
-          const frontCurls = [
-            { pos: [0.06, 0.40, 0.36], rot: [0.6, 0.4, -0.7], scale: 1.15 },
-            { pos: [-0.04, 0.35, 0.39], rot: [0.7, -0.3, -0.4], scale: 1.05 },
-            { pos: [0.15, 0.38, 0.33], rot: [0.5, 0.6, -0.8], scale: 0.95 },
-            { pos: [-0.14, 0.36, 0.34], rot: [0.5, -0.5, 0.6], scale: 0.9 },
+          // Signature Forehead Curls (wavy locks cascading gracefully over forehead as in reference photo)
+          const foreheadCurlGeom = new TorusGeometry(0.048, 0.022, 10, 20, Math.PI * 1.3);
+          const frontLocks = [
+            { pos: [0.04, 0.38, 0.34], rot: [0.5, 0.2, -0.5], scale: 1.05 },
+            { pos: [-0.05, 0.37, 0.35], rot: [0.6, -0.3, -0.2], scale: 0.95 },
+            { pos: [0.12, 0.39, 0.31], rot: [0.4, 0.5, -0.6], scale: 0.85 },
           ];
 
-          frontCurls.forEach((cfg) => {
-            const mesh = new Mesh(smallCurl, hairMat);
+          frontLocks.forEach((cfg) => {
+            const mesh = new Mesh(foreheadCurlGeom, hairMat);
             mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
             mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
             mesh.scale.setScalar(cfg.scale);
             hairGroup.add(mesh);
-
-            const tuft = new Mesh(capGeom, hairMat);
-            tuft.position.set(cfg.pos[0] * 0.9, cfg.pos[1] + 0.03, cfg.pos[2] - 0.04);
-            tuft.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
-            tuft.scale.set(0.7, 0.8, 0.7);
-            hairGroup.add(tuft);
           });
 
           headBone.add(hairGroup);
@@ -228,55 +215,24 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
           // ==========================================
           // 2. SHINY SILVER HOOP EARRINGS (BOTH EARS)
           // ==========================================
-          const earringGeom = new TorusGeometry(0.048, 0.009, 14, 28);
+          const earringGeom = new TorusGeometry(0.038, 0.007, 14, 28);
           const silverMat = new MeshStandardMaterial({
-            color: new Color('#f1f5f9'),
-            metalness: 0.96,
-            roughness: 0.12,
+            color: new Color('#e2e8f0'),
+            metalness: 0.95,
+            roughness: 0.15,
           });
 
           // Left Earring
           const leftEarring = new Mesh(earringGeom, silverMat);
-          leftEarring.position.set(0.36, -0.04, 0.02);
+          leftEarring.position.set(0.33, -0.05, 0.02);
           leftEarring.rotation.set(0, Math.PI / 2, 0);
           headBone.add(leftEarring);
 
           // Right Earring
           const rightEarring = new Mesh(earringGeom, silverMat);
-          rightEarring.position.set(-0.36, -0.04, 0.02);
+          rightEarring.position.set(-0.33, -0.05, 0.02);
           rightEarring.rotation.set(0, Math.PI / 2, 0);
           headBone.add(rightEarring);
-
-          // ==========================================
-          // 3. STYLIZED 3D TRIMMED BEARD & MUSTACHE
-          // ==========================================
-          const beardMat = new MeshStandardMaterial({
-            color: new Color('#16100b'),
-            roughness: 0.6,
-            metalness: 0.05,
-          });
-          const chinGeom = new CapsuleGeometry(0.065, 0.08, 8, 12);
-          const chin = new Mesh(chinGeom, beardMat);
-          chin.position.set(0, -0.17, 0.38);
-          chin.rotation.set(0.4, 0, 0);
-          headBone.add(chin);
-
-          const jawGeom = new CapsuleGeometry(0.045, 0.16, 8, 12);
-          const jawLeft = new Mesh(jawGeom, beardMat);
-          jawLeft.position.set(0.18, -0.12, 0.24);
-          jawLeft.rotation.set(0.3, 0.3, -0.6);
-          headBone.add(jawLeft);
-
-          const jawRight = new Mesh(jawGeom, beardMat);
-          jawRight.position.set(-0.18, -0.12, 0.24);
-          jawRight.rotation.set(0.3, -0.3, 0.6);
-          headBone.add(jawRight);
-
-          const mustacheGeom = new TorusGeometry(0.06, 0.022, 8, 16, Math.PI);
-          const mustache = new Mesh(mustacheGeom, beardMat);
-          mustache.position.set(0, -0.06, 0.44);
-          mustache.rotation.set(0.2, 0, Math.PI);
-          headBone.add(mustache);
         }
 
         rootGroupRef.current.clear();
@@ -338,15 +294,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       dropStartTimeRef.current = t;
     }
 
-    const elapsed = t - dropStartTimeRef.current;
     const roomTransform = computeRoomTransform(scrollProgress);
-
-    // Initial friendly greeting wave while seated at the desk (0.4s to 2.4s)
-    let wavingStrength = 0;
-    if (elapsed >= 0.4 && elapsed < 2.4) {
-      const waveNorm = (elapsed - 0.4) / 2.0;
-      wavingStrength = Math.sin(waveNorm * Math.PI);
-    }
 
     // Avatar is permanently seated in the chair (no flying or standing)
     const desktopIdle = actionsRef.current.get('desktop-idle');
@@ -354,18 +302,16 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     const wave = actionsRef.current.get('wave');
 
     if (desktopIdle) {
-      desktopIdle.weight = Math.max(0, 1 - wavingStrength);
+      desktopIdle.weight = 1;
     }
     if (tIdle) {
       tIdle.weight = 0;
     }
     if (wave) {
-      wave.weight = Math.max(0, wavingStrength);
+      wave.weight = 0;
     }
 
-    // Blinking & smiling facial expressions
-    const isSmiling = elapsed < 3.2;
-    const baseFrame = isSmiling ? 12 : 0;
+    // Always maintain Lincoln's charming smile with natural eye blinking
     const blinkCycle = t % 4.2;
     let blinkOffset = 0;
     if (blinkCycle > 4.0) {
@@ -375,19 +321,19 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     } else if (blinkCycle > 3.85) {
       blinkOffset = 1;
     }
-    faceUniformsRef.current.uFrame.value = baseFrame + blinkOffset;
+    faceUniformsRef.current.uFrame.value = 12 + blinkOffset;
 
     if (mixerRef.current) {
       mixerRef.current.update(Math.min(delta, 0.05));
     }
 
-    // On scroll: Lincoln and his chair smoothly roll back & aside ("se afastando")
-    // so the camera zooms cleanly into the computer screen instead of his hair!
+    // On scroll: Lincoln and his chair smoothly roll BACKWARDS away from the desk (+X)
+    // so the camera zooms cleanly straight into the computer screen with zero clipping!
     if (rootGroupRef.current) {
       rootGroupRef.current.position.set(
-        -0.07 - roomTransform.chairSlideOffset * 0.45,
+        -0.07 + roomTransform.chairSlideOffset * 0.55,
         -0.40,
-        -0.025 + roomTransform.chairSlideOffset * 0.85
+        -0.025 - roomTransform.chairSlideOffset * 0.15
       );
       rootGroupRef.current.rotation.set(
         0,

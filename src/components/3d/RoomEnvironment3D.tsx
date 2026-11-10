@@ -305,12 +305,12 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
       rootWrapperRef.current.rotation.set(0, roomTransform.roomRotationY, 0);
     }
 
-    // On scroll: Chair smoothly rolls back & aside in exact lockstep with Lincoln
+    // On scroll: Chair smoothly rolls BACKWARDS away from the desk (+X) in exact lockstep with Lincoln
     if (chairMeshRef.current) {
       chairMeshRef.current.position.set(
-        chairBasePosRef.current.x - roomTransform.chairSlideOffset * 0.45,
+        chairBasePosRef.current.x + roomTransform.chairSlideOffset * 0.55,
         chairBasePosRef.current.y,
-        chairBasePosRef.current.z + roomTransform.chairSlideOffset * 0.85
+        chairBasePosRef.current.z - roomTransform.chairSlideOffset * 0.15
       );
       chairMeshRef.current.rotation.set(
         0,
