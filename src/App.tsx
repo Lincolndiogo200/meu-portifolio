@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Workspace3DPortal } from './components/3d/Workspace3DPortal';
 import { ContactFooter } from './components/layout/ContactFooter';
 import { Navbar } from './components/layout/Navbar';
 import { ExperienceTimeline } from './components/sections/ExperienceTimeline';
@@ -85,6 +86,8 @@ const PortfolioShell: React.FC = () => {
         onOpenCommandPalette={() => setIsPaletteOpen(true)}
         onSwitchLanguage={handleSwitchLanguage}
       />
+
+      {!isBooting && <Workspace3DPortal />}
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-10 sm:pt-14 space-y-16 sm:space-y-20">
         {isBooting ? (
