@@ -19,6 +19,7 @@ export interface SocialLinks {
 
 export interface HeroContent {
   name: string;
+  avatarUrl: string;
   roleBadge: LocalizedText;
   headline: LocalizedText;
   bio: LocalizedText;
@@ -130,7 +131,6 @@ export interface UILabels {
     heading: string;
     subheading: string;
     whatsappButton: string;
-    footerNote: string;
   };
   commandPalette: {
     placeholder: string;

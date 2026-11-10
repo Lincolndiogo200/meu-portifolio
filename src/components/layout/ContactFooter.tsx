@@ -83,7 +83,6 @@ export const ContactFooter: React.FC = () => {
         <span>
           © {new Date().getFullYear()} Lincoln Diogo · {socialLinks.phoneDisplay}
         </span>
-        <span>{labels.footerNote}</span>
       </div>
     </footer>
   );

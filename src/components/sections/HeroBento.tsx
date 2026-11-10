@@ -37,13 +37,20 @@ export const HeroBento: React.FC = () => {
                 <span>{heroContent.roleBadge[language]}</span>
               </div>
 
-              <div className="space-y-2">
-                <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-                  {heroContent.name}
-                </h1>
-                <p className="text-base sm:text-lg font-medium text-zinc-700 dark:text-zinc-200 max-w-2xl">
-                  {heroContent.headline[language]}
-                </p>
+              <div className="flex items-center gap-4">
+                <img
+                  src={heroContent.avatarUrl}
+                  alt={heroContent.name}
+                  className="h-14 w-14 sm:h-16 sm:w-16 rounded-full object-cover ring-2 ring-amber-400/70 shadow-md shrink-0"
+                />
+                <div className="space-y-1">
+                  <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+                    {heroContent.name}
+                  </h1>
+                  <p className="text-base sm:text-lg font-medium text-zinc-700 dark:text-zinc-200 max-w-2xl">
+                    {heroContent.headline[language]}
+                  </p>
+                </div>
               </div>
 
               <p className="text-sm sm:text-base leading-relaxed text-zinc-600 dark:text-zinc-400 max-w-2xl">

@@ -91,7 +91,8 @@ describe('ExperienceTimeline & ContactFooter', () => {
     expect(screen.getByText('SMN Tecnologia da Informação')).toBeInTheDocument();
     expect(screen.getByText('AquaProduce')).toBeInTheDocument();
     expect(screen.getByText('Unifacisa Centro Universitário')).toBeInTheDocument();
-    expect(screen.getByText(/CRA: 8.9 \/ 10/i)).toBeInTheDocument();
+    expect(screen.queryByText(/CRA/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Construído com React, TypeScript & Tailwind CSS/i)).not.toBeInTheDocument();
     expect(
       screen.getByText('Universidade Federal de Campina Grande (UFCG)')
     ).toBeInTheDocument();

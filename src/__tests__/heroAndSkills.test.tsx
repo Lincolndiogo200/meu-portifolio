@@ -23,6 +23,8 @@ describe('HeroBento & SkillsAndLanguages', () => {
     );
 
     expect(screen.getByRole('heading', { name: /Lincoln Diogo/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Lincoln Diogo/i })).toBeInTheDocument();
+    expect(screen.queryByText(/CRA/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Single Software/i)).toBeInTheDocument();
 
     const linkedinLink = screen.getByRole('link', { name: /LinkedIn/i });

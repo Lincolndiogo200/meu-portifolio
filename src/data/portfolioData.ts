@@ -24,6 +24,7 @@ export const socialLinks: SocialLinks = {
 
 export const heroContent: HeroContent = {
   name: 'Lincoln Diogo',
+  avatarUrl: `${import.meta.env.BASE_URL}images/lincoln-avatar.jpg`,
   roleBadge: {
     pt: 'Engenheiro de Software (Frontend) @ Single Software',
     en: 'Software Engineer (Frontend) @ Single Software',
@@ -46,10 +47,10 @@ export const heroContent: HeroContent = {
   },
   highlights: [
     {
-      value: 'CRA 8.9/10',
+      value: 'Unifacisa',
       label: {
-        pt: 'Sistemas de Informação · Unifacisa',
-        en: 'B.Sc. Information Systems · GPA 8.9/10',
+        pt: 'Sistemas de Informação · Bacharelado',
+        en: 'B.Sc. Information Systems',
       },
     },
     {
@@ -443,10 +444,6 @@ export const educationItems: EducationItem[] = [
     institution: 'Unifacisa Centro Universitário',
     period: '2023 – 2027',
     location: 'Campina Grande, PB',
-    highlight: {
-      pt: 'CRA: 8.9 / 10',
-      en: 'GPA: 8.9 / 10',
-    },
   },
   {
     id: 'ufcg',
@@ -518,7 +515,6 @@ export const uiLabels: Record<Language, UILabels> = {
       subheading:
         'Entre em contato para oportunidades em engenharia front-end/fullstack, projetos ou networking.',
       whatsappButton: 'Chamar no WhatsApp',
-      footerNote: 'Construído com React, TypeScript & Tailwind CSS.',
     },
     commandPalette: {
       placeholder: 'Digite um comando ou busque seção, rede social, CV...',
@@ -597,7 +593,6 @@ export const uiLabels: Record<Language, UILabels> = {
       subheading:
         'Reach out for frontend/fullstack engineering roles, product collaborations, or networking.',
       whatsappButton: 'Message on WhatsApp',
-      footerNote: 'Built with React, TypeScript & Tailwind CSS.',
     },
     commandPalette: {
       placeholder: 'Type a command or search sections, socials, resume...',
