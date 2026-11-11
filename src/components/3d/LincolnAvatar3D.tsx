@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, useTexture, Html } from '@react-three/drei';
+import { useGLTF, useTexture } from '@react-three/drei';
 import {
   AnimationAction,
   AnimationMixer,
@@ -8,9 +8,7 @@ import {
   Box3,
   Group,
   LinearSRGBColorSpace,
-  LoopOnce,
   LoopPingPong,
-  MathUtils,
   Mesh,
   MeshMatcapMaterial,
   MeshStandardMaterial,
@@ -31,9 +29,6 @@ interface LincolnAvatar3DProps {
   onSwivelChange?: (swivelY: number) => void;
 }
 
-// Natural wave clip duration in avatar.glb is ~2.7s
-const WAVE_DURATION = 2.7;
-
 // Workstation orientation offset (90 deg): aligns Lincoln squarely seated in the office chair
 // with his back against the backrest and facing forward toward the computer monitors
 const AVATAR_FACING_ROTATION = Math.PI / 2;
@@ -46,10 +41,6 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
   const rootGroupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
   const actionsRef = useRef<Map<string, AnimationAction>>(new Map());
-  const startTimeRef = useRef<number | null>(null);
-  const prevScrollRef = useRef(0);
-  const [badgeOpacity, setBadgeOpacity] = useState(0);
-  const [isHovered, setIsHovered] = useState(false);
 
   // Load animated body model and Lincoln's realistic 3D head model
   const bodyGltf = useGLTF(BODY_MODEL_PATH);
@@ -109,7 +100,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       }
     });
 
-    // Attach Lincoln's real 3D head onto the character's headBone with anatomical proportions
+    // Attach Lincoln's real 3D head (torso/tronco removed) onto the character's headBone
     const headBone = clonedArmature.getObjectByName('headBone') as Bone | undefined;
     if (headBone) {
       while (headBone.children.length > 0) {
@@ -118,7 +109,6 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
 
       const lincolnHead = headGltf.scene.clone(true);
 
-      // Measure bounding box of Lincoln's head model
       const box = new Box3().setFromObject(lincolnHead);
       const size = new Vector3();
       const center = new Vector3();
@@ -144,8 +134,8 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
           child.castShadow = true;
           child.receiveShadow = true;
           const mat = child.material as MeshStandardMaterial;
-          mat.roughness = Math.max(mat.roughness ?? 0.65, 0.6);
-          mat.metalness = Math.min(mat.metalness ?? 0.05, 0.06);
+          mat.roughness = 0.72;
+          mat.metalness = 0.02;
           mat.needsUpdate = true;
         }
       });
@@ -189,7 +179,6 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       bodyGltf.animations.find((clip) => clip.name === name);
 
     const idleClip = findClip('idle');
-    const waveClip = findClip('wave');
 
     if (idleClip) {
       const act = mixer.clipAction(idleClip);
@@ -197,15 +186,6 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       act.weight = 1;
       act.play();
       actionsRef.current.set('idle', act);
-    }
-
-    if (waveClip) {
-      const act = mixer.clipAction(waveClip);
-      act.loop = LoopOnce;
-      act.clampWhenFinished = true;
-      act.weight = 1;
-      act.play();
-      actionsRef.current.set('wave', act);
     }
 
     return () => {
@@ -222,56 +202,7 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     };
   }, []);
 
-  const triggerWave = () => {
-    const wave = actionsRef.current.get('wave');
-    if (wave) {
-      wave.reset();
-      wave.play();
-    }
-  };
-
-  useFrame(({ clock }, delta) => {
-    const t = clock.getElapsedTime();
-
-    if (startTimeRef.current === null) {
-      startTimeRef.current = t;
-    }
-
-    const elapsed = t - startTimeRef.current;
-    const isScrolling = scrollProgress > 0.02;
-
-    // If user scrolled down and returned to top, replay greeting wave!
-    if (prevScrollRef.current > 0.15 && scrollProgress <= 0.01) {
-      startTimeRef.current = t;
-      triggerWave();
-    }
-    prevScrollRef.current = scrollProgress;
-
-    // Choreograph wave weight:
-    // Wave action smoothly takes over for WAVE_DURATION (~2.7s), then blends back to idle
-    let waveWeight = 0;
-    if (!isScrolling && elapsed < WAVE_DURATION) {
-      if (elapsed < 0.2) {
-        waveWeight = elapsed / 0.2;
-      } else if (elapsed < WAVE_DURATION - 0.4) {
-        waveWeight = 1;
-      } else {
-        waveWeight = Math.max(0, (WAVE_DURATION - elapsed) / 0.4);
-      }
-    }
-
-    const idleWeight = 1 - waveWeight;
-
-    const wave = actionsRef.current.get('wave');
-    const idle = actionsRef.current.get('idle');
-
-    if (wave) {
-      wave.weight = waveWeight;
-    }
-    if (idle) {
-      idle.weight = idleWeight;
-    }
-
+  useFrame((_, delta) => {
     if (mixerRef.current) {
       mixerRef.current.update(Math.min(delta, 0.05));
     }
@@ -280,10 +211,6 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     if (onSwivelChange) {
       onSwivelChange(0);
     }
-
-    // Update floating speech badge
-    const showBadge = !isScrolling && waveWeight > 0.35;
-    setBadgeOpacity(MathUtils.lerp(badgeOpacity, showBadge ? 1 : 0, 0.15));
 
     // Position character seated squarely in the office chair:
     // With AVATAR_FACING_ROTATION (Math.PI / 2):
@@ -305,69 +232,9 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
     }
   });
 
-  const handleAvatarClick = () => {
-    // Replay greeting wave when visitor clicks on Lincoln!
-    startTimeRef.current = null;
-    triggerWave();
-  };
-
   return (
-    <group
-      ref={rootGroupRef}
-      onClick={handleAvatarClick}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        setIsHovered(true);
-        if (typeof document !== 'undefined') {
-          document.body.style.cursor = 'pointer';
-        }
-      }}
-      onPointerOut={() => {
-        setIsHovered(false);
-        if (typeof document !== 'undefined') {
-          document.body.style.cursor = 'auto';
-        }
-      }}
-    >
+    <group ref={rootGroupRef}>
       <primitive object={skinnedMesh} />
-
-      {/* Floating Greeting Speech Badge */}
-      {badgeOpacity > 0.02 && (
-        <Html
-          position={[0, 3.2, 0.4]}
-          center
-          distanceFactor={11}
-          zIndexRange={[100, 0]}
-        >
-          <div
-            style={{
-              opacity: badgeOpacity,
-              transition: 'opacity 0.2s ease',
-              background: 'rgba(15, 23, 42, 0.88)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              color: '#f8fafc',
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              fontSize: '13px',
-              fontWeight: 600,
-              letterSpacing: '0.01em',
-              whiteSpace: 'nowrap',
-              boxShadow:
-                '0 8px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(99, 102, 241, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              pointerEvents: 'none',
-              userSelect: 'none',
-              transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-            }}
-          >
-            <span style={{ fontSize: '15px' }}>👋</span>
-            <span>Oi! Sou o Lincoln</span>
-          </div>
-        </Html>
-      )}
     </group>
   );
 };

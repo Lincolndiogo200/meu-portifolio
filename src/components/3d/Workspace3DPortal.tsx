@@ -274,7 +274,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
           opacity: transition.canvasOpacity,
           pointerEvents: transition.canvasOpacity > 0.05 ? 'auto' : 'none',
         }}
-        className="fixed inset-0 z-30 h-screen w-full select-none overflow-hidden bg-[#f5efe6] dark:bg-[#09090b] transition-opacity duration-300"
+        className="fixed inset-0 z-30 h-screen w-full select-none overflow-hidden bg-[#e9e3d8] dark:bg-[#181a20] transition-opacity duration-300"
       >
         <div className="relative h-screen w-full overflow-hidden flex items-center">
           {/* Full-screen 3D WebGL Canvas */}
