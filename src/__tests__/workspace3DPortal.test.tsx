@@ -52,5 +52,6 @@ describe('Workspace3DPortal (3D Room & Monitor Zoom Portal)', () => {
 
     fireEvent.click(backButton);
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(portal).toHaveAttribute('data-portal-state', 'room-overview');
   });
 });

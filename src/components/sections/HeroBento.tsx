@@ -58,12 +58,12 @@ export const HeroBento: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <div className="relative z-20 flex flex-wrap items-center gap-2.5 pt-1">
               <a
                 href={socialLinks.linkedin}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-950 px-4 py-2.5 text-xs sm:text-sm font-semibold transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-full bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-950 px-4 py-2.5 text-xs sm:text-sm font-semibold transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <LinkedInIcon className="h-4 w-4" />
                 <span>LinkedIn</span>
@@ -74,7 +74,7 @@ export const HeroBento: React.FC = () => {
                 href={socialLinks.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-zinc-300 dark:border-zinc-700/90 bg-zinc-100/80 dark:bg-zinc-800/70 px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-900 dark:text-zinc-100 transition-colors hover:border-zinc-400 dark:hover:border-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-zinc-300 dark:border-zinc-700/90 bg-zinc-100/80 dark:bg-zinc-800/70 px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-900 dark:text-zinc-100 transition-colors hover:border-zinc-400 dark:hover:border-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <GitHubIcon className="h-4 w-4" />
                 <span>GitHub</span>
@@ -84,7 +84,7 @@ export const HeroBento: React.FC = () => {
               <a
                 href={socialLinks.cvPath[language]}
                 download={language === 'pt' ? 'CV_Lincoln_Diogo_PT.pdf' : 'CV_Lincoln_Diogo_EN.pdf'}
-                className="inline-flex items-center gap-2 rounded-full border border-sky-500/35 bg-sky-500/10 px-4 py-2.5 text-xs sm:text-sm font-medium text-sky-700 dark:text-sky-300 transition-colors hover:bg-sky-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-sky-500/35 bg-sky-500/10 px-4 py-2.5 text-xs sm:text-sm font-medium text-sky-700 dark:text-sky-300 transition-colors hover:bg-sky-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <Download className="h-4 w-4" />
                 <span>{labels.downloadCv}</span>
@@ -93,7 +93,7 @@ export const HeroBento: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCopyEmail}
-                className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-transparent px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:hover:border-zinc-700 dark:hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-transparent px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:hover:border-zinc-700 dark:hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 {copied ? (
                   <>

@@ -28,6 +28,7 @@ import { RubberDuck3D } from './RubberDuck3D';
 interface RoomEnvironment3DProps {
   scrollProgress: number;
   isDark: boolean;
+  onLoaded?: () => void;
 }
 
 /**
@@ -728,6 +729,7 @@ const ROOM_MESH_NAMES = [
 export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
   scrollProgress,
   isDark: _isDark,
+  onLoaded,
 }) => {
   const rootWrapperRef = useRef<Group>(null);
   const roomGroupRef = useRef<Group>(null);
@@ -906,9 +908,16 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
           const desktopLeftMesh = new Mesh(geom2, terminalMaterial);
           roomGroupRef.current.add(desktopLeftMesh);
         }
+
+        if (isMounted) {
+          onLoaded?.();
+        }
       })
       .catch(() => {
-        // Ignore in headless test environments
+        // Fallback for headless test environments or asset loading errors
+        if (isMounted) {
+          onLoaded?.();
+        }
       });
 
     return () => {

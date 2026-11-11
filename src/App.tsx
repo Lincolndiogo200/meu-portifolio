@@ -122,8 +122,8 @@ const PortfolioShell: React.FC = () => {
 
       <main
         id="main-content"
-        className={`mx-auto max-w-5xl px-4 sm:px-6 pt-10 sm:pt-14 space-y-16 sm:space-y-20 transition-opacity duration-300 ${
-          isInsideMonitor ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`relative z-30 mx-auto max-w-5xl px-4 sm:px-6 pt-10 sm:pt-14 space-y-16 sm:space-y-20 transition-opacity duration-300 ${
+          isInsideMonitor ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         {isBooting ? (

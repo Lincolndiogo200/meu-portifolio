@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { useProgress } from '@react-three/drei';
 import { ArrowDown, Monitor, RotateCcw, SkipForward } from 'lucide-react';
 import { MathUtils } from 'three';
 import { usePreferences } from '../../context/PreferencesContext';
@@ -9,6 +10,7 @@ import {
   computePortalTransitionState,
   ROOM_INITIAL_POSITION,
 } from '../../utils/cameraScrollMath';
+import { LoadingScreen } from '../ui/LoadingScreen';
 import { CameraScrollRig } from './CameraScrollRig';
 import { RoomEnvironment3D } from './RoomEnvironment3D';
 
@@ -80,6 +82,91 @@ export const Workspace3DPortal = React.forwardRef<
   const targetProgressRef = useRef(0);
   const currentProgressRef = useRef(0);
   const [hasWebGL] = useState<boolean>(() => detectWebGLSupport());
+  const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+
+  const [isRoomLoaded, setIsRoomLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(() => hasWebGL && !isJsdom);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  const { progress: assetProgress, active: isAssetLoading } = useProgress();
+  const targetLoadProgressRef = useRef(10);
+
+  const handleRoomLoaded = React.useCallback(() => {
+    setIsRoomLoaded(true);
+  }, []);
+
+  const handleSkipLoading = React.useCallback(() => {
+    setIsRoomLoaded(true);
+    targetLoadProgressRef.current = 100;
+    setDisplayProgress(100);
+    setIsFadingOut(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 300);
+  }, []);
+
+  // Update target progress as assets stream in
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let target = 15;
+    if (isRoomLoaded && (!isAssetLoading || assetProgress >= 100)) {
+      target = 100;
+    } else if (isRoomLoaded) {
+      target = Math.max(90, assetProgress);
+    } else {
+      target = Math.min(88, Math.max(15, assetProgress * 0.9));
+    }
+
+    targetLoadProgressRef.current = Math.max(targetLoadProgressRef.current, target);
+  }, [isLoading, isRoomLoaded, isAssetLoading, assetProgress]);
+
+  // Smooth interpolation ticker for progress bar
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const interval = setInterval(() => {
+      setDisplayProgress((prev) => {
+        const target = targetLoadProgressRef.current;
+        if (prev >= 100) return 100;
+        const diff = target - prev;
+        if (diff <= 0.4 && target >= 100) {
+          return 100;
+        }
+        const step = Math.max(0.6, diff * 0.12);
+        return Math.min(target, prev + step);
+      });
+    }, 25);
+
+    const fallbackTimer = setTimeout(() => {
+      setIsRoomLoaded(true);
+      targetLoadProgressRef.current = 100;
+    }, 4500);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(fallbackTimer);
+    };
+  }, [isLoading]);
+
+  // Once displayProgress reaches 100, smoothly fade out the loading overlay
+  useEffect(() => {
+    if (!isLoading || displayProgress < 100) return;
+
+    const fadeTimer = setTimeout(() => {
+      setIsFadingOut(true);
+    }, 250);
+
+    const finishTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 950);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(finishTimer);
+    };
+  }, [isLoading, displayProgress]);
 
   // Expose imperative control for seamless section navigation from the Navbar or Command Palette
   useImperativeHandle(ref, () => ({
@@ -133,10 +220,10 @@ export const Workspace3DPortal = React.forwardRef<
     const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
 
     const handleWheel = (e: WheelEvent) => {
-      // If intro is active (zoom < 0.98), intercept wheel to drive smooth 3D zoom into monitor
+      // If intro is active (zoom < 0.98), intercept wheel to drive smooth 3D zoom into monitor or back out
       if (currentProgressRef.current < 0.98) {
         e.preventDefault();
-        const delta = e.deltaY * 0.0015;
+        const delta = e.deltaY * 0.0018;
         targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
       } else {
         // Once inside portfolio (zoom >= 0.98):
@@ -147,8 +234,8 @@ export const Workspace3DPortal = React.forwardRef<
           if (window.scrollY !== 0) {
             window.scrollTo({ top: 0, behavior: 'instant' });
           }
-          const delta = e.deltaY * 0.0015;
-          targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
+          const delta = e.deltaY * 0.003;
+          targetProgressRef.current = Math.min(0.96, Math.max(0, targetProgressRef.current + delta));
         }
       }
     };
@@ -163,7 +250,7 @@ export const Workspace3DPortal = React.forwardRef<
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 0) return;
       const currentY = e.touches[0].clientY;
-      const deltaY = (touchStartY - currentY) * 0.0024;
+      const deltaY = (touchStartY - currentY) * 0.0028;
       touchStartY = currentY;
 
       if (currentProgressRef.current < 0.98) {
@@ -177,7 +264,7 @@ export const Workspace3DPortal = React.forwardRef<
           if (window.scrollY !== 0) {
             window.scrollTo({ top: 0, behavior: 'instant' });
           }
-          targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + deltaY));
+          targetProgressRef.current = Math.min(0.96, Math.max(0, targetProgressRef.current + deltaY * 1.5));
         }
       }
     };
@@ -203,7 +290,18 @@ export const Workspace3DPortal = React.forwardRef<
       lastTime = now;
 
       const prev = currentProgressRef.current;
-      const target = targetProgressRef.current;
+      let target = targetProgressRef.current;
+
+      // When zooming IN towards monitor (target >= 0.98), snap to 1 once close
+      if (target >= 0.98 && prev >= 0.95 && targetProgressRef.current >= 0.98) {
+        target = 1;
+        targetProgressRef.current = 1;
+      } else if (target <= 0.02 && targetProgressRef.current <= 0.02) {
+        // When zooming OUT towards 3D room, snap to 0 cleanly once close
+        target = 0;
+        targetProgressRef.current = 0;
+      }
+
       // Snappy responsiveness (14) eliminates dragging latency
       const next = MathUtils.damp(prev, target, 14, dt);
       const settled = Math.abs(next - target) < 0.0005 ? target : next;
@@ -295,10 +393,10 @@ export const Workspace3DPortal = React.forwardRef<
 
   const handleBackTo3D = () => {
     targetProgressRef.current = 0;
-    const isJsdom = typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
-    if (isJsdom) {
-      currentProgressRef.current = 0;
-      setScrollProgress(0);
+    currentProgressRef.current = 0;
+    setScrollProgress(0);
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
     }
     if (onPortalStateChange) {
       onPortalStateChange(false);
@@ -308,12 +406,22 @@ export const Workspace3DPortal = React.forwardRef<
 
   return (
     <>
+      {isLoading && (
+        <LoadingScreen
+          progress={displayProgress}
+          isFadingOut={isFadingOut}
+          language={language}
+          theme={theme}
+          onSkip={handleSkipLoading}
+        />
+      )}
+
       <section
         data-testid="workspace-3d-portal"
         data-portal-state={transition.isInsideMonitor ? 'inside-monitor' : 'room-overview'}
         style={{
           opacity: transition.canvasOpacity,
-          pointerEvents: transition.canvasOpacity > 0.05 ? 'auto' : 'none',
+          pointerEvents: !transition.isInsideMonitor && transition.canvasOpacity > 0.05 ? 'auto' : 'none',
         }}
         className="fixed inset-0 z-30 h-screen w-full select-none overflow-hidden bg-[#e9e3d8] dark:bg-[#181a20] transition-opacity duration-300"
       >
@@ -347,6 +455,7 @@ export const Workspace3DPortal = React.forwardRef<
                   <RoomEnvironment3D
                     scrollProgress={scrollProgress}
                     isDark={isDark}
+                    onLoaded={handleRoomLoaded}
                   />
                 </Suspense>
               </Canvas>
@@ -358,11 +467,11 @@ export const Workspace3DPortal = React.forwardRef<
           {/* Left-aligned Hero HUD */}
           <div
             style={{
-              opacity: transition.hudOpacity,
-              pointerEvents: transition.hudOpacity > 0.15 ? 'auto' : 'none',
+              opacity: isLoading ? 0 : transition.hudOpacity,
+              pointerEvents: !isLoading && transition.hudOpacity > 0.15 ? 'auto' : 'none',
               transform: `translateY(${(-scrollProgress * 60).toFixed(1)}px)`,
             }}
-            className="relative z-20 mx-auto w-full max-w-5xl px-4 sm:px-6 pt-16 sm:pt-20 transition-opacity duration-150"
+            className="relative z-20 mx-auto w-full max-w-5xl px-4 sm:px-6 pt-16 sm:pt-20 transition-opacity duration-500"
           >
             <div className="max-w-md space-y-4 rounded-3xl border border-zinc-200/70 dark:border-zinc-800/80 bg-white/75 dark:bg-zinc-950/70 p-6 sm:p-7 backdrop-blur-md shadow-xl">
               <div className="flex items-center gap-3.5">
