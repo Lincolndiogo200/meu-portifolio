@@ -237,24 +237,11 @@ function createPortfolioPreviewTexture(onImageLoaded?: () => void): Texture {
     ctx.fillText('PT / EN', canvas.width - 108, 82);
 
     // Hero Section Content
-    const heroY = 155;
-
-    // Badge: "Setup Interativo 3D"
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(48, heroY, 270, 32, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 13px "Inter", sans-serif';
-    ctx.fillText('✨ Setup Interativo 3D · Three.js', 66, heroY + 21);
+    const heroY = 145;
 
     // Circular Avatar with amber glowing border
     const avatarCenterX = 96;
-    const avatarCenterY = heroY + 88;
+    const avatarCenterY = heroY + 50;
     const avatarRadius = 40;
 
     ctx.save();
@@ -294,47 +281,47 @@ function createPortfolioPreviewTexture(onImageLoaded?: () => void): Texture {
     // Greeting & Headline
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 14px "JetBrains Mono", monospace';
-    ctx.fillText('OLÁ, EU SOU', 158, heroY + 70);
+    ctx.fillText('OLÁ, EU SOU', 158, heroY + 36);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px "Inter", sans-serif';
-    ctx.fillText('Lincoln Diogo', 158, heroY + 108);
+    ctx.fillText('Lincoln Diogo', 158, heroY + 74);
 
     ctx.fillStyle = '#f4f4f5';
     ctx.font = '600 24px "Inter", sans-serif';
-    ctx.fillText('Senior Frontend Engineer & Creative Developer', 48, heroY + 168);
+    ctx.fillText('Senior Frontend Engineer & Creative Developer', 48, heroY + 130);
 
     ctx.fillStyle = '#a1a1aa';
     ctx.font = '15px "Inter", sans-serif';
     ctx.fillText(
       'Especialista em React, TypeScript, Three.js, WebGL e arquitetura moderna de aplicações.',
       48,
-      heroY + 200
+      heroY + 162
     );
 
     // Action CTA Buttons
     // Primary Button
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
-    ctx.roundRect(48, heroY + 232, 175, 44, 22);
+    ctx.roundRect(48, heroY + 196, 175, 44, 22);
     ctx.fill();
     ctx.fillStyle = '#09090b';
     ctx.font = 'bold 15px "Inter", sans-serif';
-    ctx.fillText('Ver Projetos ↓', 84, heroY + 259);
+    ctx.fillText('Ver Projetos ↓', 84, heroY + 223);
 
     // Secondary Button
     ctx.fillStyle = '#27272a';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(240, heroY + 232, 140, 44, 22);
+    ctx.roundRect(240, heroY + 196, 140, 44, 22);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#f4f4f5';
-    ctx.fillText('Baixar CV', 278, heroY + 259);
+    ctx.fillText('Baixar CV', 278, heroY + 223);
 
     // Bento Cards Preview Grid
-    const bentoY = heroY + 305;
+    const bentoY = heroY + 270;
 
     // Card 1: Tech Stack
     ctx.fillStyle = '#18181b';
@@ -749,6 +736,7 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
   const mouseMeshRef = useRef<Mesh | null>(null);
   const mouseBasePosRef = useRef(new Vector3());
   const rightHandBoneRef = useRef<Bone | null>(null);
+  const tempWorldHandRef = useRef(new Vector3());
   const chairSwivelRef = useRef(0);
   const dropStartTimeRef = useRef<number | null>(null);
   const portfolioTexRef = useRef<Texture | null>(null);
@@ -965,27 +953,29 @@ export const RoomEnvironment3D: React.FC<RoomEnvironment3DProps> = ({
       portfolioTexRef.current.offset.y = 0.42 * (1.0 - scrollProgress);
     }
 
-    // Sync desk mouse with avatar's right hand bone
+    // Sync desk mouse with avatar's right hand bone (reusing ref to avoid GC pauses)
     if (
       mouseMeshRef.current &&
       rightHandBoneRef.current &&
       roomGroupRef.current &&
       scrollProgress < 0.1
     ) {
-      const worldHand = new Vector3();
-      rightHandBoneRef.current.getWorldPosition(worldHand);
-      roomGroupRef.current.worldToLocal(worldHand);
+      rightHandBoneRef.current.getWorldPosition(tempWorldHandRef.current);
+      roomGroupRef.current.worldToLocal(tempWorldHandRef.current);
+      const hx = tempWorldHandRef.current.x;
+      const hy = tempWorldHandRef.current.y;
+      const hz = tempWorldHandRef.current.z;
       if (
-        worldHand.y <= 1.8 &&
-        worldHand.x >= -0.9 &&
-        worldHand.x <= -0.7 &&
-        worldHand.z >= -0.6 &&
-        worldHand.z <= -0.28
+        hy <= 1.8 &&
+        hx >= -0.9 &&
+        hx <= -0.7 &&
+        hz >= -0.6 &&
+        hz <= -0.28
       ) {
         mouseMeshRef.current.position.set(
-          worldHand.x,
+          hx,
           mouseBasePosRef.current.y,
-          worldHand.z - 0.15
+          hz - 0.15
         );
       }
     }

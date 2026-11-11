@@ -6,11 +6,15 @@ import { uiLabels } from '../../data/portfolioData';
 interface NavbarProps {
   onOpenCommandPalette: () => void;
   onSwitchLanguage: () => void;
+  onNavigateSection?: (sectionId: string) => void;
+  onLogoClick?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenCommandPalette,
   onSwitchLanguage,
+  onNavigateSection,
+  onLogoClick,
 }) => {
   const { theme, language, toggleTheme } = usePreferences();
   const labels = uiLabels[language].nav;
@@ -23,6 +27,26 @@ export const Navbar: React.FC<NavbarProps> = ({
     { href: '#contact', label: labels.contact },
   ];
 
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    const sectionId = href.replace(/^#/, '');
+    if (onNavigateSection) {
+      onNavigateSection(sectionId);
+    } else {
+      const el = document.getElementById(sectionId);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    if (onLogoClick) {
+      onLogoClick();
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <header className="sticky top-4 z-40 mx-auto max-w-5xl px-4 sm:px-6">
       <nav
@@ -31,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         <a
           href="#"
+          onClick={handleLogoClick}
           className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-md px-1"
         >
           lincoln<span className="text-sky-500 dark:text-sky-400">.diogo</span>
@@ -41,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <a
               key={item.href}
               href={item.href}
+              onClick={(e) => handleNavClick(e, item.href)}
               className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded px-1 py-0.5"
             >
               {item.label}

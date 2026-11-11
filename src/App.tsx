@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Workspace3DPortal } from './components/3d/Workspace3DPortal';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Workspace3DPortal,
+  type Workspace3DPortalHandle,
+} from './components/3d/Workspace3DPortal';
 import { ContactFooter } from './components/layout/ContactFooter';
 import { Navbar } from './components/layout/Navbar';
 import { ExperienceTimeline } from './components/sections/ExperienceTimeline';
@@ -23,6 +26,27 @@ const PortfolioShell: React.FC = () => {
   const [activeSkill, setActiveSkill] = useState<string | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isInsideMonitor, setIsInsideMonitor] = useState(false);
+  const portalRef = useRef<Workspace3DPortalHandle>(null);
+
+  const handleNavigateSection = (sectionId: string) => {
+    if (!isInsideMonitor) {
+      setIsInsideMonitor(true);
+      portalRef.current?.enterMonitor(sectionId);
+    } else {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const handleLogoClick = () => {
+    if (isInsideMonitor) {
+      portalRef.current?.exitMonitor();
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
@@ -86,9 +110,12 @@ const PortfolioShell: React.FC = () => {
       <Navbar
         onOpenCommandPalette={() => setIsPaletteOpen(true)}
         onSwitchLanguage={handleSwitchLanguage}
+        onNavigateSection={handleNavigateSection}
+        onLogoClick={handleLogoClick}
       />
 
       <Workspace3DPortal
+        ref={portalRef}
         onPortalStateChange={(inside) => setIsInsideMonitor(inside)}
         onEnterMonitor={() => setIsInsideMonitor(true)}
       />
@@ -126,6 +153,7 @@ const PortfolioShell: React.FC = () => {
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
         onSwitchLanguage={handleSwitchLanguage}
+        onNavigateSection={handleNavigateSection}
       />
     </div>
   );

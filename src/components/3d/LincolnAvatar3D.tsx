@@ -131,8 +131,8 @@ export const LincolnAvatar3D: React.FC<LincolnAvatar3DProps> = ({
       // Soft natural PBR lighting for Lincoln's skin and curly hair
       lincolnHead.traverse((child) => {
         if (child instanceof Mesh && child.material) {
-          child.castShadow = true;
-          child.receiveShadow = true;
+          child.castShadow = false;
+          child.receiveShadow = false;
           const mat = child.material as MeshStandardMaterial;
           mat.roughness = 0.72;
           mat.metalness = 0.02;

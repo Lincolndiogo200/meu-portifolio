@@ -1,6 +1,6 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ArrowDown, Monitor, RotateCcw, SkipForward, Sparkles } from 'lucide-react';
+import { ArrowDown, Monitor, RotateCcw, SkipForward } from 'lucide-react';
 import { MathUtils } from 'three';
 import { usePreferences } from '../../context/PreferencesContext';
 import { heroContent } from '../../data/portfolioData';
@@ -11,6 +11,12 @@ import {
 } from '../../utils/cameraScrollMath';
 import { CameraScrollRig } from './CameraScrollRig';
 import { RoomEnvironment3D } from './RoomEnvironment3D';
+
+export interface Workspace3DPortalHandle {
+  enterMonitor: (targetSectionId?: string) => void;
+  exitMonitor: () => void;
+  setProgress: (progress: number) => void;
+}
 
 interface Workspace3DPortalProps {
   onEnterMonitor?: () => void;
@@ -62,10 +68,10 @@ const PORTAL_COPY = {
   },
 } as const;
 
-export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
-  onEnterMonitor,
-  onPortalStateChange,
-}) => {
+export const Workspace3DPortal = React.forwardRef<
+  Workspace3DPortalHandle,
+  Workspace3DPortalProps
+>(({ onEnterMonitor, onPortalStateChange }, ref) => {
   const { language, theme } = usePreferences();
   const copy = PORTAL_COPY[language];
   const isDark = theme === 'dark';
@@ -74,6 +80,39 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
   const targetProgressRef = useRef(0);
   const currentProgressRef = useRef(0);
   const [hasWebGL] = useState<boolean>(() => detectWebGLSupport());
+
+  // Expose imperative control for seamless section navigation from the Navbar or Command Palette
+  useImperativeHandle(ref, () => ({
+    enterMonitor: (targetSectionId = 'about') => {
+      targetProgressRef.current = 1;
+      currentProgressRef.current = 1;
+      setScrollProgress(1);
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+      if (onPortalStateChange) {
+        onPortalStateChange(true);
+      }
+      if (onEnterMonitor) {
+        onEnterMonitor();
+      }
+      setTimeout(() => {
+        const el =
+          document.getElementById(targetSectionId) ||
+          document.getElementById('about') ||
+          document.getElementById('main-content');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    },
+    exitMonitor: () => {
+      handleBackTo3D();
+    },
+    setProgress: (progress: number) => {
+      targetProgressRef.current = progress;
+      currentProgressRef.current = progress;
+      setScrollProgress(progress);
+    },
+  }));
 
   // Always start cleanly at the 3D office overview (progress = 0)
   useEffect(() => {
@@ -97,7 +136,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
       // If intro is active (zoom < 0.98), intercept wheel to drive smooth 3D zoom into monitor
       if (currentProgressRef.current < 0.98) {
         e.preventDefault();
-        const delta = e.deltaY * 0.0018;
+        const delta = e.deltaY * 0.0015;
         targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
       } else {
         // Once inside portfolio (zoom >= 0.98):
@@ -108,7 +147,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
           if (window.scrollY !== 0) {
             window.scrollTo({ top: 0, behavior: 'instant' });
           }
-          const delta = e.deltaY * 0.0018;
+          const delta = e.deltaY * 0.0015;
           targetProgressRef.current = Math.min(1, Math.max(0, targetProgressRef.current + delta));
         }
       }
@@ -124,7 +163,7 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 0) return;
       const currentY = e.touches[0].clientY;
-      const deltaY = (touchStartY - currentY) * 0.0028;
+      const deltaY = (touchStartY - currentY) * 0.0024;
       touchStartY = currentY;
 
       if (currentProgressRef.current < 0.98) {
@@ -165,11 +204,13 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
 
       const prev = currentProgressRef.current;
       const target = targetProgressRef.current;
-      const next = MathUtils.damp(prev, target, 7, dt);
+      // Snappy responsiveness (14) eliminates dragging latency
+      const next = MathUtils.damp(prev, target, 14, dt);
       const settled = Math.abs(next - target) < 0.0005 ? target : next;
       currentProgressRef.current = settled;
 
-      setScrollProgress((p) => (Math.abs(p - settled) > 0.0008 ? settled : p));
+      // Quantized update threshold prevents 120Hz React state thrashing
+      setScrollProgress((p) => (Math.abs(p - settled) > 0.002 ? settled : p));
 
       // Lock scroll while in 3D overview, unlock once arrived inside monitor
       if (!isJsdom && typeof document !== 'undefined') {
@@ -284,7 +325,13 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
           >
             {hasWebGL ? (
               <Canvas
-                dpr={[1, 2]}
+                dpr={[1, 1.5]}
+                gl={{
+                  powerPreference: 'high-performance',
+                  antialias: true,
+                  stencil: false,
+                  depth: true,
+                }}
                 camera={{
                   position: ROOM_INITIAL_POSITION,
                   fov: 38,
@@ -318,11 +365,6 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
             className="relative z-20 mx-auto w-full max-w-5xl px-4 sm:px-6 pt-16 sm:pt-20 transition-opacity duration-150"
           >
             <div className="max-w-md space-y-4 rounded-3xl border border-zinc-200/70 dark:border-zinc-800/80 bg-white/75 dark:bg-zinc-950/70 p-6 sm:p-7 backdrop-blur-md shadow-xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>{copy.badge}</span>
-              </div>
-
               <div className="flex items-center gap-3.5">
                 <img
                   src={heroContent.avatarUrl}
@@ -407,4 +449,6 @@ export const Workspace3DPortal: React.FC<Workspace3DPortalProps> = ({
       )}
     </>
   );
-};
+});
+
+Workspace3DPortal.displayName = 'Workspace3DPortal';

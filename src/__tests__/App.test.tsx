@@ -93,4 +93,29 @@ describe('App End-to-End Portfolio Experience', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Professional Working Proficiency')).toBeInTheDocument();
   });
+
+  it('navigates into portfolio when clicking a navbar section link from the 3D room overview', () => {
+    const scrollIntoViewMock = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+    render(<App />);
+
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+
+    const portal = screen.getByTestId('workspace-3d-portal');
+    expect(portal).toHaveAttribute('data-portal-state', 'room-overview');
+
+    // Click "Projetos" in Navbar while on 3D room screen
+    const projectsLink = screen.getByRole('link', { name: 'Projetos' });
+    fireEvent.click(projectsLink);
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(portal).toHaveAttribute('data-portal-state', 'inside-monitor');
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+  });
 });

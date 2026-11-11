@@ -18,6 +18,7 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   onSwitchLanguage: () => void;
+  onNavigateSection?: (sectionId: string) => void;
 }
 
 interface CommandItem {
@@ -33,6 +34,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
   onSwitchLanguage,
+  onNavigateSection,
 }) => {
   const { theme, language, toggleTheme } = usePreferences();
   const [query, setQuery] = useState('');
@@ -44,8 +46,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const commands: CommandItem[] = useMemo(() => {
     const scrollToSection = (id: string) => {
-      const element = document.getElementById(id);
-      element?.scrollIntoView({ behavior: 'smooth' });
+      if (onNavigateSection) {
+        onNavigateSection(id);
+      } else {
+        const element = document.getElementById(id);
+        element?.scrollIntoView({ behavior: 'smooth' });
+      }
       onClose();
     };
 

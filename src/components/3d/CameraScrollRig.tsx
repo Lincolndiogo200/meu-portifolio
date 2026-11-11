@@ -11,7 +11,8 @@ interface CameraScrollRigProps {
   scrollProgress: number;
 }
 
-const DAMP_LAMBDA = 5;
+// Snappy responsiveness (18) eliminates sluggish double-damping delay on scroll
+const DAMP_LAMBDA = 18;
 
 export const CameraScrollRig: React.FC<CameraScrollRigProps> = ({
   scrollProgress,
@@ -105,8 +106,12 @@ export const CameraScrollRig: React.FC<CameraScrollRigProps> = ({
     camera.lookAt(currentLookAtRef.current);
 
     if (camera instanceof PerspectiveCamera) {
+      const prevFov = camera.fov;
       camera.fov = MathUtils.damp(camera.fov, pose.fov, DAMP_LAMBDA, safeDelta);
-      camera.updateProjectionMatrix();
+      // Only recalculate projection matrix when FOV changes noticeably
+      if (Math.abs(camera.fov - prevFov) > 0.001) {
+        camera.updateProjectionMatrix();
+      }
     }
   });
 
